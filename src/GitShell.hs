@@ -7,6 +7,7 @@ module GitShell
   , SHA
   ) where
 
+import           Data.Char      (isSpace)
 import           Repo           (Repo)
 import qualified Repo
 import           System.Process (callProcess, cwd, proc, readCreateProcess)
@@ -18,20 +19,21 @@ type SHA
 
 cloneBare :: Repo -> FilePath -> IO ()
 cloneBare repo path =
-  callProcess "git" ["clone", "--bare", Repo.uri repo, path]
+  callProcess "git" ["clone", "--bare", "--single-branch", "--quiet", Repo.uri repo, path]
 
 
 revParseHead :: FilePath -> IO SHA
-revParseHead path =
-  readCreateProcess
+revParseHead path = do
+  output <- readCreateProcess
     (proc "git" ["rev-parse", "HEAD"]) { cwd = Just path }
     ""
+  return (filter (not . isSpace) output)
 
 
 fetch :: FilePath -> IO ()
 fetch path = do
   readCreateProcess
-    (proc "git" ["fetch"]) { cwd = Just path }
+    (proc "git" ["fetch", "--quiet"]) { cwd = Just path }
     ""
   return ()
 
@@ -53,4 +55,4 @@ gitLogImpl path additionalArgs = do
   output <- readCreateProcess
     (proc "git" allArgs) { cwd = Just path }
     ""
-  return (lines output)
+  return (filter (not . null) (lines output))

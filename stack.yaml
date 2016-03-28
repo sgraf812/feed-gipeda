@@ -9,7 +9,9 @@ packages:
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- twitch-0.1.7.0 
+- twitch-0.1.7.0
+- fsnotify-0.2.1
+- argparser-0.3.4
 
 # Override default flag values for local packages and extra-deps
 flags: {}

@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Repo
-  ( Repo()
+  ( Repo ()
   , uri
-  , Repos
+  , Repos ()
   , noRepos
   , toList
   , difference
