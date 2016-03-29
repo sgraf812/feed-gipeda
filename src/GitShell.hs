@@ -8,6 +8,8 @@ module GitShell
   ) where
 
 import           Data.Char      (isSpace)
+import           Data.Set       (Set)
+import qualified Data.Set       as Set
 import           Repo           (Repo)
 import qualified Repo
 import           System.Process (callProcess, cwd, proc, readCreateProcess)
@@ -43,9 +45,9 @@ commitsInRange path lower upper =
   gitLogImpl path [lower ++ ".." ++ upper]
 
 
-allCommits :: FilePath -> IO [SHA]
+allCommits :: FilePath -> IO (Set SHA)
 allCommits path =
-  gitLogImpl path []
+  fmap Set.fromList (gitLogImpl path [])
 
 
 gitLogImpl :: FilePath -> [String] -> IO [SHA]

@@ -1,27 +1,32 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import           Control.Concurrent       (forkIO, threadDelay)
 import           Control.Concurrent.MVar
-import           Control.Concurrent (threadDelay)
-import Control.Exception (bracket)
-import Control.Monad (forever)
+import           Control.Exception        (bracket, bracketOnError, mask, onException)
+import           Control.Monad            (forever, unless)
 import           Control.Monad.IO.Class   (liftIO)
-import           Control.Monad.Par.IO     (runParIO)
+import           Data.Default             (Default (def))
 import           Data.Maybe               (fromJust)
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
 import           Data.String              (fromString)
+import qualified Data.Time                as Time
 import qualified Data.Yaml                as Yaml
 import           GitShell                 (SHA)
 import qualified GitShell
 import           Repo                     (Repo, Repos)
 import qualified Repo
-import           System.Console.ArgParser (Descr (..), ParserSpec, andBy, parsedBy,
-                                           optPos, withParseResult)
+import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
+                                           optPos, parsedBy, withParseResult)
 import           System.Directory
-import           System.FilePath          ((</>))
+import           System.FilePath          (dropFileName, replaceFileName,
+                                           takeBaseName, (<.>), (</>))
+import qualified System.FSNotify          as FS
+import           System.IO                (IOMode (WriteMode), openFile, hClose, hPutStr)
+import           System.Process           (readProcessWithExitCode)
 import           Twitch                   ((|>))
 import qualified Twitch
-import qualified System.FSNotify as FS
-import qualified Data.Time as Time
 
 
 parseRepos :: FilePath -> IO Repos
@@ -31,16 +36,42 @@ parseRepos f = do
   return (fromJust repos)
 
 
-repoPath :: Repo -> IO FilePath
-repoPath repo = do
+clonePath :: Repo -> IO FilePath
+clonePath repo = do
   cwd <- getCurrentDirectory
   return (cwd </> Repo.uniqueName repo </> "repository")
 
 
-benchmark :: String -> FilePath -> SHA -> IO ()
-benchmark script path commit =
+logsPath :: Repo -> IO FilePath
+logsPath repo = do
+  cwd <- getCurrentDirectory
+  return (cwd </> Repo.uniqueName repo </> "logs")
 
-  putStrLn (path ++ ":" ++ commit)
+
+writeFileDeleteOnException :: FilePath -> IO String -> IO ()
+writeFileDeleteOnException path action =
+  -- remove the file only when an exception happened, but close the handle
+  -- at all costs.
+  mask $ \restore -> do
+    handle <- openFile path WriteMode
+    (action >>= hPutStr handle) `onException` (hClose handle >> removeFile path)
+    hClose handle
+
+
+benchmark :: String -> Repo -> FilePath -> SHA -> IO ()
+benchmark script repo clone commit = do
+  logsPath <- logsPath repo
+  let
+    logFile = logsPath </> commit <.> "log"
+  exists <- doesFileExist logFile
+  unless exists $
+    -- A poor man's mutex. Delete the file only if there occurred an error while
+    -- benchmarking (e.g. ctrl-c). Otherwise a re-run would not benchmark
+    -- the touched commit.
+    writeFileDeleteOnException logFile $ do
+      putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
+      (exitCode, stdout, stderr) <- readProcessWithExitCode script [clone, commit] ""
+      return stdout
 
 
 fetchRepos :: String -> Repos -> IO ()
@@ -49,21 +80,26 @@ fetchRepos script repos =
     where
       fetchRepo :: Repo -> IO ()
       fetchRepo repo = do
-        newCommits <- getNewCommits repo
-        path <- repoPath repo
-        mapM_ (runParIO . liftIO . benchmark script path) newCommits
+        unhandledCommits <- unhandledCommits repo
+        clone <- clonePath repo
+        logs <- logsPath repo
+        -- I'm unsure about whether this should be parallelized.
+        -- Performance couldn't be compared among builds anymore.
+        mapM_ ({-forkIO .-} benchmark script repo clone) unhandledCommits
 
 
-getNewCommits :: Repo -> IO [SHA]
-getNewCommits repo = do
-  path <- repoPath repo
-  exists <- doesDirectoryExist path
-  if exists
+unhandledCommits :: Repo -> IO (Set SHA)
+unhandledCommits repo = do
+  path <- clonePath repo
+  hasClone <- doesDirectoryExist path
+  if hasClone
     then do
-      oldHead <- GitShell.revParseHead path
       GitShell.fetch path
-      newHead <- GitShell.revParseHead path
-      GitShell.commitsInRange path oldHead newHead
+      allCommits <- GitShell.allCommits path
+      logsPath <- logsPath repo
+      createDirectoryIfMissing True logsPath
+      alreadyHandledCommits <- getDirectoryContents logsPath
+      (return . Set.difference allCommits . Set.fromList . map takeBaseName) alreadyHandledCommits
     else do
       createDirectoryIfMissing True path
       GitShell.cloneBare repo path
@@ -72,6 +108,7 @@ getNewCommits repo = do
 
 updateRepos :: String -> MVar Repos -> FilePath -> IO ()
 updateRepos script reposVar f = do
+  putStrLn "Checking for new Repositories..."
   !diff <- modifyMVar reposVar swapAndComputeDiff
   fetchRepos script diff
     where
@@ -92,9 +129,13 @@ cmdParser = CmdArgs
   ++ " supplied the repository to name and specific commit to benchmark"
 
 
-withWatchDep :: Twitch.Dep -> (FS.WatchManager -> IO a) -> IO a
-withWatchDep dep =
-  bracket (Twitch.run dep) FS.stopManager
+withWatchFile :: FilePath -> (FilePath -> IO ()) -> (FS.WatchManager -> IO a) -> IO a
+withWatchFile file modifyAction inner = do
+  let
+    dir = dropFileName file
+    dep = fromString file |> modifyAction
+    config = def { Twitch.dirs = [dir] }
+  bracket (Twitch.runWithConfig dir config dep) FS.stopManager inner
 
 
 periodicallyUpdate :: Time.NominalDiffTime -> String -> MVar Repos -> IO ()
@@ -109,8 +150,9 @@ periodicallyUpdate dt script repos = forever $ do
 main :: IO ()
 main = withParseResult cmdParser $ \(CmdArgs script) -> do
   repos <- newMVar Repo.noRepos
-  withWatchDep
-    ("feed-gipeda.yaml" |> updateRepos script repos)
+  withWatchFile
+    "feed-gipeda.yaml"
+    (updateRepos script repos)
     (\_ -> do
       updateRepos script repos "feed-gipeda.yaml"
       periodicallyUpdate 5 script repos)
