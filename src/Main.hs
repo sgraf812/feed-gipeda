@@ -1,10 +1,13 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import Debug.Trace
 import           Control.Concurrent       (forkIO, threadDelay)
+import           Control.Concurrent.Chan
 import           Control.Concurrent.MVar
-import           Control.Exception        (bracket, bracketOnError, mask, onException)
-import           Control.Monad            (forever, unless)
+import           Control.Exception        (bracket, bracketOnError, mask,
+                                           onException)
+import           Control.Monad            (forever, unless, when)
 import           Control.Monad.IO.Class   (liftIO)
 import           Data.Default             (Default (def))
 import           Data.Maybe               (fromJust)
@@ -20,13 +23,13 @@ import qualified Repo
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
                                            optPos, parsedBy, withParseResult)
 import           System.Directory
-import           System.FilePath          (dropFileName, replaceFileName,
-                                           takeBaseName, (<.>), (</>))
+import           System.FilePath          (dropFileName, equalFilePath,
+                                           replaceFileName, takeBaseName, (<.>),
+                                           (</>))
 import qualified System.FSNotify          as FS
-import           System.IO                (IOMode (WriteMode), openFile, hClose, hPutStr)
+import           System.IO                (IOMode (WriteMode), hClose, hPutStr,
+                                           openFile)
 import           System.Process           (readProcessWithExitCode)
-import           Twitch                   ((|>))
-import qualified Twitch
 
 
 parseRepos :: FilePath -> IO Repos
@@ -58,11 +61,12 @@ writeFileDeleteOnException path action =
     hClose handle
 
 
-benchmark :: String -> Repo -> FilePath -> SHA -> IO ()
-benchmark script repo clone commit = do
-  logsPath <- logsPath repo
+benchmark :: String -> Repo -> SHA -> IO ()
+benchmark script repo commit = do
+  clone <- clonePath repo
+  logs <- logsPath repo
   let
-    logFile = logsPath </> commit <.> "log"
+    logFile = logs </> commit <.> "log"
   exists <- doesFileExist logFile
   unless exists $
     -- A poor man's mutex. Delete the file only if there occurred an error while
@@ -85,7 +89,7 @@ fetchRepos script repos =
         logs <- logsPath repo
         -- I'm unsure about whether this should be parallelized.
         -- Performance couldn't be compared among builds anymore.
-        mapM_ ({-forkIO .-} benchmark script repo clone) unhandledCommits
+        mapM_ ({-forkIO .-} benchmark script repo) unhandledCommits
 
 
 unhandledCommits :: Repo -> IO (Set SHA)
@@ -106,15 +110,12 @@ unhandledCommits repo = do
       GitShell.allCommits path
 
 
-updateRepos :: String -> MVar Repos -> FilePath -> IO ()
-updateRepos script reposVar f = do
-  putStrLn "Checking for new Repositories..."
-  !diff <- modifyMVar reposVar swapAndComputeDiff
-  fetchRepos script diff
-    where
-      swapAndComputeDiff oldList = do
-        newList <- parseRepos f
-        return (newList, Repo.difference newList oldList)
+extractNewRepos :: MVar Repos -> FilePath -> IO Repos
+extractNewRepos reposVar file = do
+  putStrLn "Extracting new repositories from the config file..."
+  !newList <- parseRepos file
+  modifyMVar reposVar $ \oldList ->
+    return (newList, Repo.difference newList oldList)
 
 
 data CmdArgs
@@ -129,17 +130,20 @@ cmdParser = CmdArgs
   ++ " supplied the repository to name and specific commit to benchmark"
 
 
-withWatchFile :: FilePath -> (FilePath -> IO ()) -> (FS.WatchManager -> IO a) -> IO a
+withWatchFile :: FilePath -> IO () -> IO a -> IO a
 withWatchFile file modifyAction inner = do
   let
-    dir = dropFileName file
-    dep = fromString file |> modifyAction
-    config = def { Twitch.dirs = [dir] }
-  bracket (Twitch.runWithConfig dir config dep) FS.stopManager inner
+    filterEvents evt =
+      case evt of
+        FS.Removed _ _ -> False
+        _ -> equalFilePath file (FS.eventPath evt)
+  FS.withManager $ \mgr -> do
+    FS.watchDir mgr (dropFileName file) filterEvents (const modifyAction)
+    inner
 
 
-periodicallyUpdate :: Time.NominalDiffTime -> String -> MVar Repos -> IO ()
-periodicallyUpdate dt script repos = forever $ do
+periodicallyFetch :: Time.NominalDiffTime -> String -> MVar Repos -> IO ()
+periodicallyFetch dt script repos = forever $ do
   begin <- Time.getCurrentTime
   readMVar repos >>= fetchRepos script
   end <- Time.getCurrentTime
@@ -147,12 +151,31 @@ periodicallyUpdate dt script repos = forever $ do
   threadDelay (ceiling ((dt - elapsed) * 1000000))
 
 
+data WorkItem
+  = WorkItem Repo SHA
+
+
+configFile :: IO FilePath
+configFile =
+  canonicalizePath "feed-gipeda.yaml"
+
+
+touchIfPresent :: FilePath -> IO ()
+touchIfPresent f = do
+  exists <- doesFileExist f
+  when exists $ do
+      contents <- readFile f
+      length contents `seq` writeFile f contents
+
+
 main :: IO ()
 main = withParseResult cmdParser $ \(CmdArgs script) -> do
   repos <- newMVar Repo.noRepos
-  withWatchFile
-    "feed-gipeda.yaml"
-    (updateRepos script repos)
-    (\_ -> do
-      updateRepos script repos "feed-gipeda.yaml"
-      periodicallyUpdate 5 script repos)
+  --workItems <- newChan
+  f <- configFile
+  let
+    fetchAddedRepos =
+      extractNewRepos repos f >>= fetchRepos script
+    initialTouchAndFetchPeriodically =
+      touchIfPresent f >> periodicallyFetch 5 script repos
+  withWatchFile f fetchAddedRepos initialTouchAndFetchPeriodically
