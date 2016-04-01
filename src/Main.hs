@@ -57,12 +57,12 @@ writeFileDeleteOnException path action =
   -- at all costs.
   mask $ \restore -> do
     handle <- openFile path WriteMode
-    (action >>= hPutStr handle) `onException` (hClose handle >> removeFile path)
+    (action >>= hPutStr handle) `onException` (hClose handle >> putStrLn ("Removing file "++ path) >> removeFile path)
     hClose handle
 
 
-benchmark :: String -> Repo -> SHA -> IO ()
-benchmark script repo commit = do
+benchmark :: String -> WorkItem -> IO ()
+benchmark script (WorkItem repo commit) = do
   clone <- clonePath repo
   logs <- logsPath repo
   let
@@ -78,18 +78,14 @@ benchmark script repo commit = do
       return stdout
 
 
-fetchRepos :: String -> Repos -> IO ()
-fetchRepos script repos =
+fetchRepos :: Chan WorkItem -> Repos -> IO ()
+fetchRepos workItems repos =
   mapM_ fetchRepo (Repo.toList repos)
     where
       fetchRepo :: Repo -> IO ()
       fetchRepo repo = do
         unhandledCommits <- unhandledCommits repo
-        clone <- clonePath repo
-        logs <- logsPath repo
-        -- I'm unsure about whether this should be parallelized.
-        -- Performance couldn't be compared among builds anymore.
-        mapM_ ({-forkIO .-} benchmark script repo) unhandledCommits
+        mapM_ (writeChan workItems . WorkItem repo) unhandledCommits
 
 
 unhandledCommits :: Repo -> IO (Set SHA)
@@ -142,10 +138,10 @@ withWatchFile file modifyAction inner = do
     inner
 
 
-periodicallyFetch :: Time.NominalDiffTime -> String -> MVar Repos -> IO ()
-periodicallyFetch dt script repos = forever $ do
+periodicallyFetch :: Time.NominalDiffTime -> Chan WorkItem -> MVar Repos -> IO ()
+periodicallyFetch dt workItems repos = forever $ do
   begin <- Time.getCurrentTime
-  readMVar repos >>= fetchRepos script
+  readMVar repos >>= fetchRepos workItems
   end <- Time.getCurrentTime
   let elapsed = Time.diffUTCTime end begin
   threadDelay (ceiling ((dt - elapsed) * 1000000))
@@ -171,11 +167,30 @@ touchIfPresent f = do
 main :: IO ()
 main = withParseResult cmdParser $ \(CmdArgs script) -> do
   repos <- newMVar Repo.noRepos
-  --workItems <- newChan
+  workItems <- newChan
   f <- configFile
+
   let
-    fetchAddedRepos =
-      extractNewRepos repos f >>= fetchRepos script
+    benchmarkWorker :: IO ()
+    benchmarkWorker =
+      getChanContents workItems >>= mapM_ (benchmark script)
+
+    cloneAddedRepos :: IO ()
+    cloneAddedRepos =
+      extractNewRepos repos f >>= fetchRepos workItems
+
+    initialTouchAndFetchPeriodically :: IO ()
     initialTouchAndFetchPeriodically =
-      touchIfPresent f >> periodicallyFetch 5 script repos
-  withWatchFile f fetchAddedRepos initialTouchAndFetchPeriodically
+      touchIfPresent f >> periodicallyFetch 5 workItems repos
+
+  -- The worker thread will perform the benchmarking and site generation
+  -- by calling the appropriate scripts
+  -- I'm unsure about whether this should be parallelized with multiple workers.
+  -- Performance couldn't be compared among builds anymore.
+  forkIO benchmarkWorker
+  -- Each time the config file f changes, we @cloneAddedRepos@ (New repos with
+  -- new SHAs).
+  -- We also touch the config file initially (recognizing local clones and
+  -- already benchmarked commits) and check all clones for updated remotes
+  -- (old Repos, new SHAs).
+  withWatchFile f cloneAddedRepos initialTouchAndFetchPeriodically
