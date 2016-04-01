@@ -57,7 +57,7 @@ writeFileDeleteOnException path action =
   -- at all costs.
   mask $ \restore -> do
     handle <- openFile path WriteMode
-    (action >>= hPutStr handle) `onException` (hClose handle >> putStrLn ("Removing file "++ path) >> removeFile path)
+    restore (action >>= hPutStr handle) `onException` (hClose handle >> putStrLn ("Removing file "++ path) >> removeFile path)
     hClose handle
 
 
