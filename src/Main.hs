@@ -1,193 +1,48 @@
-{-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-import Debug.Trace
-import           Control.Concurrent       (forkIO, threadDelay)
+import           Control.Concurrent       (forkIO)
 import           Control.Concurrent.Chan
-import           Control.Concurrent.MVar
-import           Control.Exception        (bracket, bracketOnError, mask,
-                                           onException)
-import           Control.Monad            (forever, unless, when)
-import           Control.Monad.IO.Class   (liftIO)
-import           Data.Default             (Default (def))
-import           Data.Maybe               (fromJust)
 import           Data.Set                 (Set)
-import qualified Data.Set                 as Set
-import           Data.String              (fromString)
-import qualified Data.Time                as Time
-import qualified Data.Yaml                as Yaml
 import           GitShell                 (SHA)
-import qualified GitShell
-import           Repo                     (Repo, Repos)
-import qualified Repo
+import           Repo                     (Repo)
+import qualified RepoWatcher
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
                                            optPos, parsedBy, withParseResult)
-import           System.Directory
-import           System.FilePath          (dropFileName, equalFilePath,
-                                           replaceFileName, takeBaseName, (<.>),
-                                           (</>))
-import qualified System.FSNotify          as FS
-import           System.IO                (IOMode (WriteMode), hClose, hPutStr,
-                                           openFile)
-import           System.Process           (readProcessWithExitCode)
+import           System.Directory         (canonicalizePath)
+import           Worker                   (WorkItem ())
+import qualified Worker
 
-
-parseRepos :: FilePath -> IO Repos
-parseRepos f = do
-  repos <- Yaml.decodeFile f
-  -- TODO: error handling
-  return (fromJust repos)
-
-
-clonePath :: Repo -> IO FilePath
-clonePath repo = do
-  cwd <- getCurrentDirectory
-  return (cwd </> Repo.uniqueName repo </> "repository")
-
-
-logsPath :: Repo -> IO FilePath
-logsPath repo = do
-  cwd <- getCurrentDirectory
-  return (cwd </> Repo.uniqueName repo </> "logs")
-
-
-writeFileDeleteOnException :: FilePath -> IO String -> IO ()
-writeFileDeleteOnException path action =
-  -- remove the file only when an exception happened, but close the handle
-  -- at all costs.
-  mask $ \restore -> do
-    handle <- openFile path WriteMode
-    restore (action >>= hPutStr handle) `onException` (hClose handle >> removeFile path)
-    hClose handle
-
-
-benchmark :: String -> WorkItem -> IO ()
-benchmark script (WorkItem repo commit) = do
-  clone <- clonePath repo
-  logs <- logsPath repo
-  let
-    logFile = logs </> commit <.> "log"
-  exists <- doesFileExist logFile
-  unless exists $
-    -- A poor man's mutex. Delete the file only if there occurred an error while
-    -- benchmarking (e.g. ctrl-c). Otherwise a re-run would not benchmark
-    -- the touched commit.
-    writeFileDeleteOnException logFile $ do
-      putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
-      (exitCode, stdout, stderr) <- readProcessWithExitCode script [clone, commit] ""
-      return stdout
-
-
-fetchRepos :: Chan WorkItem -> Repos -> IO ()
-fetchRepos workItems repos =
-  mapM_ fetchRepo (Repo.toList repos)
-    where
-      fetchRepo :: Repo -> IO ()
-      fetchRepo repo = do
-        unhandledCommits <- unhandledCommits repo
-        mapM_ (writeChan workItems . WorkItem repo) unhandledCommits
-
-
-unhandledCommits :: Repo -> IO (Set SHA)
-unhandledCommits repo = do
-  path <- clonePath repo
-  hasClone <- doesDirectoryExist path
-  if hasClone
-    then do
-      GitShell.fetch path
-      allCommits <- GitShell.allCommits path
-      logsPath <- logsPath repo
-      createDirectoryIfMissing True logsPath
-      alreadyHandledCommits <- getDirectoryContents logsPath
-      (return . Set.difference allCommits . Set.fromList . map takeBaseName) alreadyHandledCommits
-    else do
-      createDirectoryIfMissing True path
-      GitShell.cloneBare repo path
-      GitShell.allCommits path
-
-
-extractNewRepos :: MVar Repos -> FilePath -> IO Repos
-extractNewRepos reposVar file = do
-  putStrLn "Extracting new repositories from the config file..."
-  !newList <- parseRepos file
-  modifyMVar reposVar $ \oldList ->
-    return (newList, Repo.difference newList oldList)
 
 
 data CmdArgs
   = CmdArgs
-  { benchmarkScript :: String
+  { benchmarkScript :: FilePath
+  , gipeda          :: FilePath
   }
 
 
 cmdParser :: ParserSpec CmdArgs
 cmdParser = CmdArgs
-  `parsedBy` optPos "cloben" "benchmark" `Descr` "benchmark script which will be"
+  `parsedBy` optPos "cloben" "benchmark" `Descr` "Benchmark script which will be"
   ++ " supplied the repository to name and specific commit to benchmark"
-
-
-withWatchFile :: FilePath -> IO () -> IO a -> IO a
-withWatchFile file modifyAction inner = do
-  let
-    filterEvents evt =
-      case evt of
-        FS.Removed _ _ -> False
-        _ -> equalFilePath file (FS.eventPath evt)
-  FS.withManager $ \mgr -> do
-    FS.watchDir mgr (dropFileName file) filterEvents (const modifyAction)
-    inner
-
-
-periodicallyFetch :: Time.NominalDiffTime -> Chan WorkItem -> MVar Repos -> IO ()
-periodicallyFetch dt workItems repos = forever $ do
-  begin <- Time.getCurrentTime
-  readMVar repos >>= fetchRepos workItems
-  end <- Time.getCurrentTime
-  let elapsed = Time.diffUTCTime end begin
-  threadDelay (ceiling ((dt - elapsed) * 1000000))
-
-
-data WorkItem
-  = WorkItem Repo SHA
+  `andBy` optPos "gipeda" "gipeda" `Descr` "Path to the gipeda installation"
+  ++ " including assets such as site/ scaffolding and install-jslibs.sh"
 
 
 configFile :: IO FilePath
 configFile =
-  canonicalizePath "feed-gipeda.yaml"
-
-
-touchIfPresent :: FilePath -> IO ()
-touchIfPresent f = do
-  exists <- doesFileExist f
-  when exists $ do
-      contents <- readFile f
-      length contents `seq` writeFile f contents
+  canonicalizePath "feed-gipeda.yaml" -- TODO: this is a case for cmd args
 
 
 main :: IO ()
-main = withParseResult cmdParser $ \(CmdArgs script) -> do
-  repos <- newMVar Repo.noRepos
-  workItems <- newChan
-  f <- configFile
+main = withParseResult cmdParser $ \(CmdArgs cloben gipeda) -> do
+  workItems <- newChan -- Work item queue between RepoWatcher and Worker
 
   let
-    cloneAddedRepos :: IO ()
-    cloneAddedRepos =
-      extractNewRepos repos f >>= fetchRepos workItems
+    onNewCommits :: Repo -> Set SHA -> IO ()
+    onNewCommits repo commits = do
+      mapM_ (writeChan workItems . Worker.Benchmark cloben repo) commits
+      writeChan workItems (Worker.Regenerate gipeda repo)
 
-    initialTouchAndFetchPeriodically :: IO ()
-    initialTouchAndFetchPeriodically =
-      touchIfPresent f >> periodicallyFetch 5 workItems repos
-
-    repoWorker :: IO ()
-    repoWorker =
-      withWatchFile f cloneAddedRepos initialTouchAndFetchPeriodically
-
-    benchmarkWorker :: IO ()
-    benchmarkWorker =
-      getChanContents workItems >>= mapM_ (benchmark script)
-
-  -- We have to run @benchmarkWorker@ on the main thread so that asynchronous
+  -- We have to run the benchmark worker on the main thread so that asynchronous
   -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
   -- .log file).
 
@@ -197,10 +52,11 @@ main = withParseResult cmdParser $ \(CmdArgs script) -> do
   -- already benchmarked commits) and check all clones for updated remotes
   -- (old Repos, new SHAs).
   -- New @(Repo, SHA)@ pairs are @WorkItem@s to be pushed to the
-  -- @benchmarkWorker@ via the @workItems@ channel.
-  forkIO repoWorker
+  -- worker via the @workItems@ channel.
+  f <- configFile
+  forkIO (RepoWatcher.watchConfiguredRepos f onNewCommits)
   -- Performs the benchmarking and site generation by calling the appropriate
   -- scripts.
   -- I'm unsure about whether this should be parallelized with multiple workers.
   -- Performance couldn't be compared among builds anymore.
-  benchmarkWorker
+  getChanContents workItems >>= mapM_ Worker.work

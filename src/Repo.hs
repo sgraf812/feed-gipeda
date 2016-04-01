@@ -8,15 +8,19 @@ module Repo
   , toList
   , difference
   , uniqueName
+  , projectDir
+  , cloneDir
+  , logsDir
   ) where
 
-import qualified Data.Hash as Hash
-import Data.Word (Word64)
-import           Data.Set                (Set)
-import qualified Data.Set                as Set
-import           Data.Yaml               (FromJSON (..), Value (Object), (.:))
+import qualified Data.Hash        as Hash
+import           Data.Set         (Set)
+import qualified Data.Set         as Set
+import           Data.Word        (Word64)
+import           Data.Yaml        (FromJSON (..), Value (Object), (.:))
 import           Network.URI
-import           System.FilePath         (takeFileName)
+import           System.Directory (getCurrentDirectory)
+import           System.FilePath  (takeFileName, (</>))
 
 newtype Repo = Repo
   { unRepo :: URI
@@ -70,3 +74,19 @@ instance FromJSON Repos where
     fmap (Repos . Set.fromList) (v .: "repositories")
   parseJSON _ =
     fail "Object"
+
+
+projectDir :: Repo -> IO FilePath
+projectDir repo = do
+  cwd <- getCurrentDirectory
+  return (cwd </> Repo.uniqueName repo)
+
+
+cloneDir :: Repo -> IO FilePath
+cloneDir repo =
+  fmap (</> "repository") (projectDir repo)
+
+
+logsDir :: Repo -> IO FilePath
+logsDir repo =
+  fmap (</> "logs") (projectDir repo)

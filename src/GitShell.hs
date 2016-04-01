@@ -10,7 +10,8 @@ import           Data.Set       (Set)
 import qualified Data.Set       as Set
 import           Repo           (Repo)
 import qualified Repo
-import           System.Process (callProcess, cwd, proc, readCreateProcessWithExitCode)
+import           System.Process (callProcess, cwd, proc,
+                                 readCreateProcessWithExitCode)
 
 
 type SHA
