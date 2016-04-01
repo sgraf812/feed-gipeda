@@ -57,7 +57,7 @@ writeFileDeleteOnException path action =
   -- at all costs.
   mask $ \restore -> do
     handle <- openFile path WriteMode
-    restore (action >>= hPutStr handle) `onException` (hClose handle >> putStrLn ("Removing file "++ path) >> removeFile path)
+    restore (action >>= hPutStr handle) `onException` (hClose handle >> removeFile path)
     hClose handle
 
 
@@ -171,10 +171,6 @@ main = withParseResult cmdParser $ \(CmdArgs script) -> do
   f <- configFile
 
   let
-    benchmarkWorker :: IO ()
-    benchmarkWorker =
-      getChanContents workItems >>= mapM_ (benchmark script)
-
     cloneAddedRepos :: IO ()
     cloneAddedRepos =
       extractNewRepos repos f >>= fetchRepos workItems
@@ -183,14 +179,28 @@ main = withParseResult cmdParser $ \(CmdArgs script) -> do
     initialTouchAndFetchPeriodically =
       touchIfPresent f >> periodicallyFetch 5 workItems repos
 
-  -- The worker thread will perform the benchmarking and site generation
-  -- by calling the appropriate scripts
-  -- I'm unsure about whether this should be parallelized with multiple workers.
-  -- Performance couldn't be compared among builds anymore.
-  forkIO benchmarkWorker
-  -- Each time the config file f changes, we @cloneAddedRepos@ (New repos with
+    repoWorker :: IO ()
+    repoWorker =
+      withWatchFile f cloneAddedRepos initialTouchAndFetchPeriodically
+
+    benchmarkWorker :: IO ()
+    benchmarkWorker =
+      getChanContents workItems >>= mapM_ (benchmark script)
+
+  -- We have to run @benchmarkWorker@ on the main thread so that asynchronous
+  -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
+  -- .log file).
+
+  -- Each time the config file @f@ changes, we @cloneAddedRepos@ (New repos with
   -- new SHAs).
   -- We also touch the config file initially (recognizing local clones and
   -- already benchmarked commits) and check all clones for updated remotes
   -- (old Repos, new SHAs).
-  withWatchFile f cloneAddedRepos initialTouchAndFetchPeriodically
+  -- New @(Repo, SHA)@ pairs are @WorkItem@s to be pushed to the
+  -- @benchmarkWorker@ via the @workItems@ channel.
+  forkIO repoWorker
+  -- Performs the benchmarking and site generation by calling the appropriate
+  -- scripts.
+  -- I'm unsure about whether this should be parallelized with multiple workers.
+  -- Performance couldn't be compared among builds anymore.
+  benchmarkWorker
