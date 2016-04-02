@@ -2,6 +2,7 @@ module GitShell
   ( cloneBare
   , fetch
   , allCommits
+  , firstCommit
   , SHA
   ) where
 
@@ -33,7 +34,12 @@ fetch path = do
 
 allCommits :: FilePath -> IO (Set SHA)
 allCommits path =
-  fmap Set.fromList (gitLogImpl path [])
+  Set.fromList <$> gitLogImpl path []
+
+
+firstCommit :: FilePath -> IO SHA
+firstCommit path =
+  head <$> gitLogImpl path ["--reverse"]
 
 
 gitLogImpl :: FilePath -> [String] -> IO [SHA]

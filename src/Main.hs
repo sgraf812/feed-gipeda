@@ -1,15 +1,16 @@
+import           ConcurrentQueueSet       (ConcurrentQueueSet)
+import qualified ConcurrentQueueSet
 import           Control.Concurrent       (forkIO)
-import           Control.Concurrent.Chan
+import           Control.Monad            (forever)
 import           Data.Set                 (Set)
 import           GitShell                 (SHA)
 import           Repo                     (Repo)
 import qualified RepoWatcher
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
-                                           optPos, parsedBy, withParseResult)
+                                           optFlag, parsedBy, withParseResult)
 import           System.Directory         (canonicalizePath)
 import           Worker                   (WorkItem ())
 import qualified Worker
-
 
 
 data CmdArgs
@@ -21,9 +22,9 @@ data CmdArgs
 
 cmdParser :: ParserSpec CmdArgs
 cmdParser = CmdArgs
-  `parsedBy` optPos "cloben" "benchmark" `Descr` "Benchmark script which will be"
+  `parsedBy` optFlag "cloben" "benchmark" `Descr` "Benchmark script which will be"
   ++ " supplied the repository to name and specific commit to benchmark"
-  `andBy` optPos "gipeda" "gipeda" `Descr` "Path to the gipeda installation"
+  `andBy` optFlag "gipeda" "gipeda" `Descr` "Path to the gipeda installation"
   ++ " including assets such as site/ scaffolding and install-jslibs.sh"
 
 
@@ -34,13 +35,13 @@ configFile =
 
 main :: IO ()
 main = withParseResult cmdParser $ \(CmdArgs cloben gipeda) -> do
-  workItems <- newChan -- Work item queue between RepoWatcher and Worker
+  workItems <- ConcurrentQueueSet.empty -- Work item queue between RepoWatcher and Worker
 
   let
     onNewCommits :: Repo -> Set SHA -> IO ()
     onNewCommits repo commits = do
-      mapM_ (writeChan workItems . Worker.Benchmark cloben repo) commits
-      writeChan workItems (Worker.Regenerate gipeda repo)
+      mapM_ (ConcurrentQueueSet.enqueue workItems . Worker.Benchmark cloben repo) commits
+      ConcurrentQueueSet.enqueue workItems (Worker.Regenerate gipeda repo)
 
   -- We have to run the benchmark worker on the main thread so that asynchronous
   -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
@@ -59,4 +60,4 @@ main = withParseResult cmdParser $ \(CmdArgs cloben gipeda) -> do
   -- scripts.
   -- I'm unsure about whether this should be parallelized with multiple workers.
   -- Performance couldn't be compared among builds anymore.
-  getChanContents workItems >>= mapM_ Worker.work
+  forever $ ConcurrentQueueSet.dequeue workItems >>= Worker.work

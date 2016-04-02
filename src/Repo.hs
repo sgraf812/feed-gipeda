@@ -1,16 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Repo
-  ( Repo ()
+  ( Repo (..)
   , uri
   , Repos ()
   , noRepos
   , toList
   , difference
   , uniqueName
+  , shortName
   , projectDir
   , cloneDir
-  , logsDir
+  , resultsDir
   ) where
 
 import qualified Data.Hash        as Hash
@@ -66,7 +67,12 @@ hash =
 
 uniqueName :: Repo -> String
 uniqueName repo =
-  takeFileName (uriPath (unRepo repo)) ++ "-" ++ (show . hash) repo
+  shortName repo ++ "-" ++ (show . hash) repo
+
+
+shortName :: Repo -> String
+shortName repo =
+  takeFileName (uriPath (unRepo repo))
 
 
 instance FromJSON Repos where
@@ -87,6 +93,6 @@ cloneDir repo =
   fmap (</> "repository") (projectDir repo)
 
 
-logsDir :: Repo -> IO FilePath
-logsDir repo =
-  fmap (</> "logs") (projectDir repo)
+resultsDir :: Repo -> IO FilePath
+resultsDir repo =
+  fmap (</> "site" </> "out" </> "results") (projectDir repo)

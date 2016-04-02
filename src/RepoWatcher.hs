@@ -11,6 +11,7 @@ import           Control.Monad           (forever, unless, when)
 import           Data.Maybe              (fromJust)
 import           Data.Set                (Set)
 import qualified Data.Set                as Set
+import           Data.Time               (NominalDiffTime)
 import qualified Data.Time               as Time
 import qualified Data.Yaml               as Yaml
 import           GitShell                (SHA)
@@ -55,9 +56,9 @@ unhandledCommits repo = do
     then do
       GitShell.fetch path
       allCommits <- GitShell.allCommits path
-      logsDir <- Repo.logsDir repo
-      createDirectoryIfMissing True logsDir
-      alreadyHandledCommits <- getDirectoryContents logsDir
+      resultsDir <- Repo.resultsDir repo
+      createDirectoryIfMissing True resultsDir
+      alreadyHandledCommits <- getDirectoryContents resultsDir
       (return . Set.difference allCommits . Set.fromList . map takeBaseName) alreadyHandledCommits
     else do
       createDirectoryIfMissing True path
@@ -85,7 +86,7 @@ withWatchFile file modifyAction inner = do
     inner
 
 
-periodicallyRefreshRepos :: Time.NominalDiffTime -> NewCommitsAction -> MVar Repos -> IO ()
+periodicallyRefreshRepos :: NominalDiffTime -> NewCommitsAction -> MVar Repos -> IO ()
 periodicallyRefreshRepos dt onNewCommits repos = forever $ do
   begin <- Time.getCurrentTime
   readMVar repos >>= fetchRepos onNewCommits
