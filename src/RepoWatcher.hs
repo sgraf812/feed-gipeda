@@ -102,8 +102,8 @@ touchIfPresent f = do
       length contents `seq` writeFile f contents
 
 
-watchConfiguredRepos :: FilePath -> NewCommitsAction -> IO ()
-watchConfiguredRepos config onNewCommits = do
+watchConfiguredRepos :: FilePath -> NominalDiffTime -> NewCommitsAction -> IO ()
+watchConfiguredRepos config dt onNewCommits = do
   repos <- newMVar Repo.noRepos
 
   let
@@ -113,6 +113,6 @@ watchConfiguredRepos config onNewCommits = do
 
     initialTouchAndFetchPeriodically :: IO ()
     initialTouchAndFetchPeriodically =
-      touchIfPresent config >> periodicallyRefreshRepos 5 onNewCommits repos
+      touchIfPresent config >> periodicallyRefreshRepos dt onNewCommits repos
 
   withWatchFile config cloneAddedRepos initialTouchAndFetchPeriodically

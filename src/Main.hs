@@ -3,6 +3,7 @@ import qualified ConcurrentQueueSet
 import           Control.Concurrent       (forkIO)
 import           Control.Monad            (forever)
 import           Data.Set                 (Set)
+import           Data.Time                (NominalDiffTime)
 import           GitShell                 (SHA)
 import           Repo                     (Repo)
 import qualified RepoWatcher
@@ -16,9 +17,10 @@ import qualified Worker
 
 data CmdArgs
   = CmdArgs
-  { benchmarkScript :: FilePath
-  , gipeda          :: FilePath
-  , configFile      :: FilePath
+  { benchmarkScript     :: FilePath
+  , gipeda              :: FilePath
+  , configFile          :: FilePath
+  , configFetchInterval :: Int
   }
 
 
@@ -32,12 +34,14 @@ cmdParser configFile = CmdArgs
   ++ " a list of watched repositories. Will be watched for changes."
   ++ " Defaults to the .feed-gipeda/feed-gipeda.yaml sub path under"
   ++ " $HOME resp. %APPDATA%/Roaming/"
+  `andBy` optFlag (60*60) "dt" `Descr` "Fetch interval for the config file. In seconds."
+  ++ " Defaults to 60*60s = 1 hour"
 
 
 main :: IO ()
 main = do
   configFile <- getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml")
-  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile) -> do
+  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile dt) -> do
     workItems <- ConcurrentQueueSet.empty -- Work item queue between RepoWatcher and Worker
 
     let
@@ -57,7 +61,7 @@ main = do
     -- (old Repos, new SHAs).
     -- New @(Repo, SHA)@ pairs are @WorkItem@s to be pushed to the
     -- worker via the @workItems@ channel.
-    forkIO (RepoWatcher.watchConfiguredRepos configFile onNewCommits)
+    forkIO (RepoWatcher.watchConfiguredRepos configFile (fromIntegral dt) onNewCommits)
     -- Performs the benchmarking and site generation by calling the appropriate
     -- scripts.
     -- I'm unsure about whether this should be parallelized with multiple workers.
