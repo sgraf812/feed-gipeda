@@ -32,9 +32,8 @@ type NewCommitsAction
 
 parseRepos :: FilePath -> IO Repos
 parseRepos f = do
-  repos <- Yaml.decodeFile f
-  -- TODO: error handling
-  return (fromJust repos)
+  repos <- Yaml.decodeFileEither f
+  either (fail . Yaml.prettyPrintParseException) return repos
 
 
 fetchRepos :: NewCommitsAction -> Repos -> IO ()
