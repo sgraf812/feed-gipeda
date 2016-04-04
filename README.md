@@ -6,7 +6,7 @@ Use this when you host a variety of repositories and want to display performance
 
 ## I think I could use this but I haven't understood a word
 
-![Architecture visualization](docs/images/feed-gipeda.svg)
+![Architecture visualization](https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/feed-gipeda.svg)
 
 `feed-gipeda` extracts repositories to watch from a \*.yaml file ([file format](TODO)), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (`<base-name>-<hash-of-URI>`) is created, under which a bare clone resides in the `repository/` folder.
 
