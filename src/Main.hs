@@ -35,7 +35,7 @@ cmdParser configFile = CmdArgs
   ++ " Defaults to the .feed-gipeda/feed-gipeda.yaml sub path under"
   ++ " $HOME resp. %APPDATA%/Roaming/"
   `andBy` optFlag (60*60) "dt" `Descr` "Fetch interval for all repos in seconds."
-  ++ " Defaults to 60*60s = 1 hour"
+  ++ " Defaults to 60*60 ~= 1 hour"
 
 
 main :: IO ()
