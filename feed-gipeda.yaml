@@ -1,0 +1,11 @@
+repositories:
+<h1 id="feed-gipeda">feed-gipeda</h1>
+<p>A daemon to continuously run <a href="https://hackage.haskell.org/package/gipeda">gipeda</a> on a list of pre-configured repositories after having run a benchmark script on each (repo, commit) pair it cannot find a benchmark results file for.</p>
+<p>Use this when you host a variety of repositories and want to display performance data about them. Although the defaults are clearly biased in towards of Haskell repositories using <code>cabal</code>/<code>stack</code>, the script to run on each new commit can be configured.</p>
+<h2 id="i-think-i-could-use-this-but-i-haven-t-understood-a-word">I think I could use this but I haven&#39;t understood a word</h2>
+<p><img src="https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/feed-gipeda.svg" alt="Architecture visualization"></p>
+<p><code>feed-gipeda</code> extracts repositories to watch from a *.yaml file (<a href="TODO">file format</a>), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (<code>&lt;base-name&gt;-&lt;hash-of-URI&gt;</code>) is created, under which a bare clone resides in the <code>repository/</code> folder.</p>
+<p>All repositories are re-fetched at a configurable interval (<code>--dt</code>) and every commit for which there is no *.csv result file in <code>site/out/results</code> generated yet causes the <code>--benchmark</code> command to be run. The concrete picture above uses <a href="https://github.com/sgraf812/cloben"><code>cloben</code></a> for that, but any other executable expecting a remote URI and commit SHA as the only two arguments and writing its (currently <code>cloben</code>-conformant) CSV output to <code>stdout</code> should do.</p>
+<p>After a number of <code>--benchmark</code> runs a <code>--gipeda</code> run follows to update the generated <code>site/</code> with the added results.</p>
+<h2 id="how-to-get-it-to-run">How to get it to run</h2>
+<p>After having a working <code>gipeda</code> installation, the following steps should get you started (using <code>cabal</code> in a similar):</p>

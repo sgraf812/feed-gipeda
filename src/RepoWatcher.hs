@@ -1,5 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 
+{-| Handles all the config file watching and repository updating.
+    Executes an IO action when a repository was (re-)fetched, also supplying
+    commits, for which there was no results file found in site/out/results.
+
+    Repositories are re-fetched at a fixed rate. Existing clones are detected
+    and reused, so that restarting the daemon will not do unnecessary work.
+-}
+
 module RepoWatcher
   ( watchConfiguredRepos
   ) where
@@ -43,14 +51,15 @@ fetchRepos onNewCommits repos =
       fetchRepo :: Repo -> IO ()
       fetchRepo repo =
         unhandledCommits repo >>= onNewCommits repo
-        --mapM_ (onNewCommit repo) unhandledCommits
-        --unless (Set.empty unhandledCommits) (onUpdatedRepo repo)
 
 
+{-| Unhandled commits of a repo are those where there is no corresponding
+    file in the results directory needed by gipeda of the repo.
+-}
 unhandledCommits :: Repo -> IO (Set SHA)
 unhandledCommits repo = do
   path <- Repo.cloneDir repo
-  hasClone <- doesDirectoryExist path
+  hasClone <- GitShell.isRepositoryRoot path
   if hasClone
     then do
       GitShell.fetch path

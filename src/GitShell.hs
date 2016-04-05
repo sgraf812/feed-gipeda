@@ -1,5 +1,6 @@
 module GitShell
-  ( cloneBare
+  ( isRepositoryRoot
+  , cloneBare
   , fetch
   , allCommits
   , firstCommit
@@ -7,16 +8,25 @@ module GitShell
   ) where
 
 import           Data.Char      (isSpace)
+import           Data.Maybe     (listToMaybe)
 import           Data.Set       (Set)
 import qualified Data.Set       as Set
 import           Repo           (Repo)
 import qualified Repo
-import           System.Process (callProcess, cwd, proc,
-                                 readCreateProcessWithExitCode)
+import           System.Exit    (ExitCode (ExitSuccess))
+import           System.Process (callProcess, readProcessWithExitCode)
 
 
 type SHA
   = String
+
+
+isRepositoryRoot :: FilePath -> IO Bool
+isRepositoryRoot path = do
+  (_, stdout, _)  <- readProcessWithExitCode
+    "git" ["-C", path, "rev-parse", "--git-dir"] ""
+  -- testing for ".git" and "." (bare repo) should be good enough.
+  (return . maybe False (`elem` [".git", "."]) . listToMaybe . lines) stdout
 
 
 cloneBare :: Repo -> FilePath -> IO ()
@@ -25,11 +35,8 @@ cloneBare repo path =
 
 
 fetch :: FilePath -> IO ()
-fetch path = do
-  readCreateProcessWithExitCode
-    (proc "git" ["fetch", "--quiet"]) { cwd = Just path }
-    ""
-  return ()
+fetch path =
+  callProcess "git" ["-C", path, "fetch", "--quiet"]
 
 
 allCommits :: FilePath -> IO (Set SHA)
@@ -45,8 +52,6 @@ firstCommit path =
 gitLogImpl :: FilePath -> [String] -> IO [SHA]
 gitLogImpl path additionalArgs = do
   let
-    allArgs = ["log", "--format=format:%H"] ++ additionalArgs
-  (exitCode, stdout, stderr) <- readCreateProcessWithExitCode
-    (proc "git" allArgs) { cwd = Just path }
-    ""
+    allArgs = ["-C", path, "log", "--format=format:%H"] ++ additionalArgs
+  (_, stdout, _) <- readProcessWithExitCode "git" allArgs ""
   return (filter (not . null) (lines stdout))

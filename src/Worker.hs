@@ -3,6 +3,10 @@ module Worker
   , work
   ) where
 
+{-| The 'meat' of the daemon. @work@ calls the @--benchmark@ script for
+    new @Benchmark@ items resp. the @--gipeda@ script for new @Regenerate@
+    items.
+-}
 
 import           Control.Exception (mask, onException)
 import           Control.Monad     (unless)

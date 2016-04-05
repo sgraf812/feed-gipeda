@@ -1,5 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-| A @ConcurrentQueueSet@. Essentially a @Chan@ where an item is not
+    enqueued if already present somewhere in the queue. Useful if the worker
+    is idempotent and new (pot. duplicated) items generated faster than executed.
+-}
+
 module ConcurrentQueueSet
   ( ConcurrentQueueSet ()
   , empty
@@ -7,15 +12,16 @@ module ConcurrentQueueSet
   , dequeue
   ) where
 
-import Control.Concurrent.MVar (MVar, newMVar, modifyMVar_)
-import Control.Concurrent.Chan (Chan, newChan, writeChan, readChan)
-import Data.Set (Set)
-import qualified Data.Set as Set
+
+import           Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
+import           Control.Concurrent.MVar (MVar, modifyMVar_, newMVar)
+import           Data.Set                (Set)
+import qualified Data.Set                as Set
 
 
 data ConcurrentQueueSet a = ConcurrentQueueSet
   { queue :: Chan a
-  , mvar :: MVar (Set a)
+  , mvar  :: MVar (Set a)
   }
 
 

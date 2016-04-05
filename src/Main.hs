@@ -17,10 +17,10 @@ import qualified Worker
 
 data CmdArgs
   = CmdArgs
-  { benchmarkScript     :: FilePath
-  , gipeda              :: FilePath
-  , configFile          :: FilePath
-  , fetchInterval :: Int
+  { benchmarkScript :: FilePath
+  , gipeda          :: FilePath
+  , configFile      :: FilePath
+  , fetchInterval   :: Int
   }
 
 
@@ -59,8 +59,8 @@ main = do
     -- We also touch the config file initially (recognizing local clones and
     -- already benchmarked commits) and check all clones for updated remotes
     -- (old Repos, new SHAs).
-    -- New @(Repo, SHA)@ pairs are @WorkItem@s to be pushed to the
-    -- worker via the @workItems@ channel.
+    -- New @(Repo, SHA)@ pairs notify the @onNewCommits@ handler, which will
+    -- push @WorkItem@s along the @workItems@ queue to the worker.
     forkIO (RepoWatcher.watchConfiguredRepos configFile (fromIntegral dt) onNewCommits)
     -- Performs the benchmarking and site generation by calling the appropriate
     -- scripts.

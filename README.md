@@ -8,7 +8,7 @@ Use this when you host a variety of repositories and want to display performance
 
 ![Architecture visualization](https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/feed-gipeda.svg)
 
-`feed-gipeda` extracts repositories to watch from a \*.yaml file ([file format](TODO)), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (`<base-name>-<hash-of-URI>`) is created, under which a bare clone resides in the `repository/` folder.
+`feed-gipeda` extracts repositories to watch from a \*.yaml file (c.f. Config file), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (`<base-name>-<hash-of-URI>`) is created, under which a bare clone resides in the `repository/` folder.
 
 All repositories are re-fetched at a configurable interval (`--dt`) and every commit for which there is no \*.csv result file in `site/out/results` generated yet causes the `--benchmark` command to be run. The concrete picture above uses [`cloben`](https://github.com/sgraf812/cloben) for that, but any other executable expecting a remote URI and commit SHA as the only two arguments and writing its (currently `cloben`-conformant) CSV output to `stdout` should do.
 
@@ -41,9 +41,12 @@ $ feed-gipeda --gipeda <path/to/gipeda/executable>
 ```
 You could also add your gipeda installation to `$PATH` and `feed-gipeda` would work with the defaults (I think, untested).
 
-## Configuration file format
+## Config file
 
-TODO. See <https://github.com/sgraf812/.feed-gipeda> or the example 2 line file above for now, there isn't anything more to it.
+Contains the list of repositories to watch encoded in a YAML file. Is supplied via the `--config` option, which defaults to `~/.feed-gipeda/feed-gipeda.yaml` (resp. `%APPDATA%/Roaming/.feed-gipeda/feed-gipeda.yaml` on Windows).
+
+For an example, see <https://github.com/sgraf812/.feed-gipeda> or the example 2 line file above.
+The file must contain a top-level `repositories` mapping to a list of repository URIs.
 
 ## Define 'Gipeda installation'
 

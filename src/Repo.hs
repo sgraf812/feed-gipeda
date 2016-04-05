@@ -1,5 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+{-| Provides domain functions about remote git repositories.
+    It also handles YAML parsing and @projectDir@ related stuff.
+    All-in-all, this is a little messy and should undergo a refactoring
+    if there should come any major changes to the code base.
+-}
+
 module Repo
   ( Repo (..)
   , uri
@@ -14,6 +20,7 @@ module Repo
   , resultsDir
   ) where
 
+
 import qualified Data.Hash        as Hash
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
@@ -22,6 +29,7 @@ import           Data.Yaml        (FromJSON (..), Value (Object), (.:))
 import           Network.URI
 import           System.Directory (getCurrentDirectory)
 import           System.FilePath  (takeFileName, (</>))
+
 
 newtype Repo = Repo
   { unRepo :: URI

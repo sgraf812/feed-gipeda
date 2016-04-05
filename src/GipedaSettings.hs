@@ -1,5 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+{-| This module is just for parsing and generating gipeda settings.yaml files.
+    It should probably replaced by a reference to gipeda, but it works for now.
+    The real raison d'être is @settingsForRepo@, which is rather an euphemism,
+    since in reality it can only generate settings for @cloben@ output.
+-}
+
 module GipedaSettings
   ( GipedaSettings (..)
   , BenchmarkSettings (..)
@@ -7,35 +13,35 @@ module GipedaSettings
   ) where
 
 
-import Data.Maybe (catMaybes)
-import Text.Printf (printf)
-import Data.Yaml (FromJSON (..), ToJSON (..), (.=))
-import qualified Data.Yaml as Yaml
-import GitShell (SHA)
+import           Data.Maybe  (catMaybes)
+import           Data.Yaml   (FromJSON (..), ToJSON (..), (.=))
+import qualified Data.Yaml   as Yaml
+import           GitShell    (SHA)
 import qualified GitShell
-import Repo (Repo)
+import           Repo        (Repo)
 import qualified Repo
+import           Text.Printf (printf)
 
 
 data GipedaSettings = GipedaSettings
-  { title :: String
-  , diffLink :: String
-  , revisionInfo :: String
-  , limitRecent :: Int
-  , start :: SHA
+  { title           :: String
+  , diffLink        :: String
+  , revisionInfo    :: String
+  , limitRecent     :: Int
+  , start           :: SHA
   , interestingTags :: String -- wildcard based, i.e. "*"
-  , benchmarks :: [BenchmarkSettings] -- This should be determined by the benchmark script used
+  , benchmarks      :: [BenchmarkSettings] -- This should be determined by the benchmark script used
   } deriving (Show)
 
 
 data BenchmarkSettings = BenchmarkSettings
-  { match :: String
+  { match           :: String
   , smallerIsBetter :: Maybe Bool -- defaults to true
-  , unit :: Maybe String          -- defaults to ""
-  , type_ :: Maybe String         -- defaults to "integral"
-  , group :: Maybe String         -- defaults to ""
-  , threshold :: Maybe Int        -- defaults to 3
-  , important :: Maybe Bool       -- defaults to true
+  , unit            :: Maybe String          -- defaults to ""
+  , type_           :: Maybe String         -- defaults to "integral"
+  , group           :: Maybe String         -- defaults to ""
+  , threshold       :: Maybe Int        -- defaults to 3
+  , important       :: Maybe Bool       -- defaults to true
   } deriving (Show)
 
 
