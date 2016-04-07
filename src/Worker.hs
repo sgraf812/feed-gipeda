@@ -13,11 +13,13 @@ import           Control.Monad     (unless)
 import qualified Data.Yaml         as Yaml
 import qualified GipedaSettings
 import           GitShell          (SHA)
+import           Network.URI       (URI, uriToString)
 import           Repo              (Repo)
 import qualified Repo
 import           System.Directory  (copyFile, createDirectoryIfMissing,
                                     doesFileExist, removeFile)
-import           System.FilePath   (dropFileName, (<.>), (</>))
+import           System.FilePath   (addTrailingPathSeparator, dropFileName,
+                                    (<.>), (</>))
 import           System.IO         (IOMode (WriteMode), hClose, hPutStr,
                                     openFile)
 import           System.Process    (cwd, proc, readCreateProcessWithExitCode)
@@ -25,7 +27,7 @@ import           System.Process    (cwd, proc, readCreateProcessWithExitCode)
 
 data WorkItem
   = Benchmark FilePath Repo SHA
-  | Regenerate FilePath Repo
+  | Regenerate FilePath Repo String
   deriving (Eq, Ord, Show)
 
 
@@ -78,6 +80,31 @@ saveSettingsIfNotExists project repo = do
   unless exists (Yaml.encodeFile settingsFile settings)
 
 
+rsyncSite :: Repo -> String -> IO ()
+rsyncSite repo remoteDir = do
+  projectDir <- Repo.projectDir repo
+
+  let
+    siteDir =
+      projectDir </> "site"
+
+    appendUniqueName :: String -> String
+    appendUniqueName remoteDir =
+      remoteDir </> Repo.uniqueName repo -- No one needs types
+
+    rsync :: String -> IO ()
+    rsync remoteDir = do
+      executeIn Nothing "rsync"
+        -- we need the trailing path separator, otherwise it will add a site
+        -- sub directory
+        ["-a", addTrailingPathSeparator siteDir, appendUniqueName remoteDir]
+      return ()
+
+  case remoteDir of
+    [] -> return ()
+    _ -> rsync remoteDir
+
+
 work :: WorkItem -> IO ()
 work (Benchmark cloben repo commit) = do
   -- Handle a fresh commit by benchmarking
@@ -95,7 +122,7 @@ work (Benchmark cloben repo commit) = do
     writeFileDeleteOnException resultFile $ do
       putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
       executeIn Nothing cloben [clone, commit]
-work (Regenerate gipeda repo) = do
+work (Regenerate gipeda repo rsyncPath) = do
   -- Regenerate the site by re-running gipeda in the projectDir.
   project <- Repo.projectDir repo
   createDirectoryIfMissing True (project </> "site" </> "js")
@@ -103,5 +130,6 @@ work (Regenerate gipeda repo) = do
   saveSettingsIfNotExists project repo
   copyIfNotExists gipeda project ("site" </> "index.html")
   copyIfNotExists gipeda project ("site" </> "js" </> "gipeda.js")
-  executeIn (Just (dropFileName gipeda)) gipeda ["-C", project, "-j"]
+  executeIn (Just project) gipeda ["-j"]
+  rsyncSite repo rsyncPath
   return ()

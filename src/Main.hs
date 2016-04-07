@@ -6,6 +6,7 @@ import           Control.Monad            (forever, when)
 import           Data.Set                 (Set)
 import           Data.Time                (NominalDiffTime)
 import           GitShell                 (SHA)
+import           Network.URI              (parseURI)
 import           Repo                     (Repo)
 import qualified RepoWatcher
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
@@ -25,6 +26,7 @@ data CmdArgs
   , configFile      :: FilePath
   , fetchInterval   :: Int
   , check           :: Bool
+  , rsyncPath       :: String
   }
 
 
@@ -41,12 +43,14 @@ cmdParser configFile = CmdArgs
   `andBy` optFlag (60*60) "dt" `Descr` "Fetch interval for all repos in seconds."
   ++ " Defaults to 60*60 ~= 1 hour"
   `andBy` boolFlag "check" `Descr` "Verify that the given config file is well-formed and exit"
+  `andBy` optFlag "" "rsync" `Descr` "ssh path under which to deploy site/ folders"
+  ++ " with rsync"
 
 
 main :: IO ()
 main = do
   configFile <- getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml")
-  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile dt check) -> do
+  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile dt check rsyncPath) -> do
     -- Handle the --check flag. Just perform a syntax check on the given configFile
     when check $ Config.checkFile configFile >>= maybe exitSuccess fail
 
@@ -56,7 +60,7 @@ main = do
       onNewCommits :: Repo -> Set SHA -> IO ()
       onNewCommits repo commits = do
         mapM_ (ConcurrentQueueSet.enqueue workItems . Worker.Benchmark cloben repo) commits
-        ConcurrentQueueSet.enqueue workItems (Worker.Regenerate gipeda repo)
+        ConcurrentQueueSet.enqueue workItems (Worker.Regenerate gipeda repo rsyncPath)
 
     -- We have to run the benchmark worker on the main thread so that asynchronous
     -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
