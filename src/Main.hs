@@ -1,19 +1,21 @@
 import           ConcurrentQueueSet       (ConcurrentQueueSet)
 import qualified ConcurrentQueueSet
+import qualified Config
 import           Control.Concurrent       (forkIO)
-import           Control.Monad            (forever)
+import           Control.Monad            (forever, when)
 import           Data.Set                 (Set)
 import           Data.Time                (NominalDiffTime)
 import           GitShell                 (SHA)
 import           Repo                     (Repo)
 import qualified RepoWatcher
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
-                                           optFlag, parsedBy, withParseResult, boolFlag)
+                                           boolFlag, optFlag, parsedBy,
+                                           withParseResult)
 import           System.Directory         (getAppUserDataDirectory)
+import           System.Exit              (exitSuccess)
 import           System.FilePath          ((</>))
 import           Worker                   (WorkItem ())
 import qualified Worker
-import qualified Config
 
 
 data CmdArgs

@@ -1,4 +1,4 @@
-# feed-gipeda
+# feed-gipeda [![Build Status](https://travis-ci.org/sgraf812/feed-gipeda.svg?branch=master)](https://travis-ci.org/sgraf812/feed-gipeda)
 
 A daemon to continuously run [gipeda](https://hackage.haskell.org/package/gipeda) on a list of pre-configured repositories after having run a benchmark script on each (repo, commit) pair it cannot find a benchmark results file for.
 
@@ -62,4 +62,3 @@ $ tree
         └── gipeda.js
 ```
 You can find the respective files in the `gipeda` repository.
-
