@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 {-| Handles all the config file watching and repository updating.
     Executes an IO action when a repository was (re-)fetched, also supplying
     commits, for which there was no results file found in site/out/results.
@@ -13,6 +11,8 @@ module RepoWatcher
   ) where
 
 
+import           Config                  (Config)
+import qualified Config
 import           Control.Concurrent      (threadDelay)
 import           Control.Concurrent.MVar (MVar, modifyMVar, newMVar, readMVar)
 import           Control.Monad           (forever, unless, when)
@@ -21,32 +21,23 @@ import           Data.Set                (Set)
 import qualified Data.Set                as Set
 import           Data.Time               (NominalDiffTime)
 import qualified Data.Time               as Time
-import qualified Data.Yaml               as Yaml
 import           GitShell                (SHA)
 import qualified GitShell
-import           Repo                    (Repo, Repos)
+import           Repo                    (Repo)
 import qualified Repo
 import           System.Directory        (createDirectoryIfMissing,
                                           doesDirectoryExist, doesFileExist,
                                           getDirectoryContents)
-import           System.FilePath         (dropFileName, equalFilePath,
-                                          takeBaseName)
-import qualified System.FSNotify         as FS
+import           System.FilePath         (takeBaseName)
 
 
 type NewCommitsAction
   = Repo -> Set SHA -> IO ()
 
 
-parseRepos :: FilePath -> IO Repos
-parseRepos f = do
-  repos <- Yaml.decodeFileEither f
-  either (fail . Yaml.prettyPrintParseException) return repos
-
-
-fetchRepos :: NewCommitsAction -> Repos -> IO ()
+fetchRepos :: NewCommitsAction -> Set Repo -> IO ()
 fetchRepos onNewCommits repos =
-  mapM_ fetchRepo (Repo.toList repos)
+  mapM_ fetchRepo (Set.toList repos)
     where
       fetchRepo :: Repo -> IO ()
       fetchRepo repo =
@@ -74,27 +65,14 @@ unhandledCommits repo = do
       GitShell.allCommits path
 
 
-extractNewRepos :: MVar Repos -> FilePath -> IO Repos
-extractNewRepos reposVar file = do
+extractNewRepos :: MVar (Set Repo) -> Set Repo -> IO (Set Repo)
+extractNewRepos reposVar newRepos = do
   putStrLn "Extracting new repositories from the config file..."
-  !newList <- parseRepos file
-  modifyMVar reposVar $ \oldList ->
-    return (newList, Repo.difference newList oldList)
+  modifyMVar reposVar $ \oldRepos ->
+    return (newRepos, Set.difference newRepos oldRepos)
 
 
-withWatchFile :: FilePath -> IO () -> IO a -> IO a
-withWatchFile file modifyAction inner = do
-  let
-    filterEvents evt =
-      case evt of
-        FS.Removed _ _ -> False
-        _ -> equalFilePath file (FS.eventPath evt)
-  FS.withManager $ \mgr -> do
-    FS.watchDir mgr (dropFileName file) filterEvents (const modifyAction)
-    inner
-
-
-periodicallyRefreshRepos :: NominalDiffTime -> NewCommitsAction -> MVar Repos -> IO ()
+periodicallyRefreshRepos :: NominalDiffTime -> NewCommitsAction -> MVar (Set Repo) -> IO ()
 periodicallyRefreshRepos dt onNewCommits repos = forever $ do
   begin <- Time.getCurrentTime
   readMVar repos >>= fetchRepos onNewCommits
@@ -112,16 +90,16 @@ touchIfPresent f = do
 
 
 watchConfiguredRepos :: FilePath -> NominalDiffTime -> NewCommitsAction -> IO ()
-watchConfiguredRepos config dt onNewCommits = do
-  repos <- newMVar Repo.noRepos
+watchConfiguredRepos configFile dt onNewCommits = do
+  repos <- newMVar Set.empty
 
   let
-    cloneAddedRepos :: IO ()
-    cloneAddedRepos =
-      extractNewRepos repos config >>= fetchRepos onNewCommits
+    cloneAddedRepos :: Config -> IO ()
+    cloneAddedRepos config =
+      extractNewRepos repos (Config.repos config) >>= fetchRepos onNewCommits
 
     initialTouchAndFetchPeriodically :: IO ()
     initialTouchAndFetchPeriodically =
-      touchIfPresent config >> periodicallyRefreshRepos dt onNewCommits repos
+      touchIfPresent configFile >> periodicallyRefreshRepos dt onNewCommits repos
 
-  withWatchFile config cloneAddedRepos initialTouchAndFetchPeriodically
+  Config.withWatchFile configFile cloneAddedRepos initialTouchAndFetchPeriodically

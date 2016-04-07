@@ -8,11 +8,12 @@ import           GitShell                 (SHA)
 import           Repo                     (Repo)
 import qualified RepoWatcher
 import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
-                                           optFlag, parsedBy, withParseResult)
+                                           optFlag, parsedBy, withParseResult, boolFlag)
 import           System.Directory         (getAppUserDataDirectory)
 import           System.FilePath          ((</>))
 import           Worker                   (WorkItem ())
 import qualified Worker
+import qualified Config
 
 
 data CmdArgs
@@ -21,6 +22,7 @@ data CmdArgs
   , gipeda          :: FilePath
   , configFile      :: FilePath
   , fetchInterval   :: Int
+  , check           :: Bool
   }
 
 
@@ -36,12 +38,16 @@ cmdParser configFile = CmdArgs
   ++ " $HOME resp. %APPDATA%/Roaming/"
   `andBy` optFlag (60*60) "dt" `Descr` "Fetch interval for all repos in seconds."
   ++ " Defaults to 60*60 ~= 1 hour"
+  `andBy` boolFlag "check" `Descr` "Verify that the given config file is well-formed and exit"
 
 
 main :: IO ()
 main = do
   configFile <- getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml")
-  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile dt) -> do
+  withParseResult (cmdParser configFile) $ \(CmdArgs cloben gipeda configFile dt check) -> do
+    -- Handle the --check flag. Just perform a syntax check on the given configFile
+    when check $ Config.checkFile configFile >>= maybe exitSuccess fail
+
     workItems <- ConcurrentQueueSet.empty -- Work item queue between RepoWatcher and Worker
 
     let
