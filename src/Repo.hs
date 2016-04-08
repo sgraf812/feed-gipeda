@@ -8,6 +8,7 @@
 
 module Repo
   ( Repo (..)
+  , unsafeFromString
   , uri
   , uniqueName
   , shortName
@@ -18,10 +19,11 @@ module Repo
 
 
 import qualified Data.Hash        as Hash
+import           Data.Maybe       (fromJust)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           Data.Word        (Word64)
-import           Network.URI      (URI, uriPath, uriToString)
+import           Network.URI      (URI, parseURI, uriPath, uriToString)
 import           System.Directory (getCurrentDirectory)
 import           System.FilePath  (takeFileName, (</>))
 
@@ -29,6 +31,11 @@ import           System.FilePath  (takeFileName, (</>))
 newtype Repo = Repo
   { unRepo :: URI
   } deriving (Eq, Ord, Show)
+
+
+unsafeFromString :: String -> Repo
+unsafeFromString uri =
+  Repo (fromJust (parseURI uri))
 
 
 uri :: Repo -> String

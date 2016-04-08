@@ -10,16 +10,20 @@ module Worker
 
 import           Control.Exception (mask, onException)
 import           Control.Monad     (unless)
+import           Data.Foldable     (find)
+import           Data.List         (stripPrefix)
+import           Data.Maybe        (fromMaybe)
 import qualified Data.Yaml         as Yaml
 import qualified GipedaSettings
 import           GitShell          (SHA)
-import           Network.URI       (URI, uriToString)
+import           Network.URI       (URI, uriAuthority, uriPath, uriRegName,
+                                    uriToString)
 import           Repo              (Repo)
 import qualified Repo
 import           System.Directory  (copyFile, createDirectoryIfMissing,
                                     doesFileExist, removeFile)
-import           System.FilePath   (addTrailingPathSeparator, dropFileName,
-                                    (<.>), (</>))
+import           System.FilePath   (addTrailingPathSeparator, dropExtension,
+                                    dropFileName, takeBaseName, (<.>), (</>))
 import           System.IO         (IOMode (WriteMode), hClose, hPutStr,
                                     openFile)
 import           System.Process    (cwd, proc, readCreateProcessWithExitCode)
@@ -80,6 +84,52 @@ saveSettingsIfNotExists project repo = do
   unless exists (Yaml.encodeFile settingsFile settings)
 
 
+type SSHSubPathPolicy
+  = (Repo -> Bool, Repo -> FilePath)
+
+
+sshSubPath :: Repo -> FilePath
+sshSubPath repo =
+  maybe Repo.uniqueName snd (find (\(matches, _) -> matches repo) policies) repo
+    where
+      policies :: [SSHSubPathPolicy]
+      policies =
+        [ gitHubPolicy
+        , perfHaskellPolicy
+        ]
+
+      stripWWW :: String -> String
+      stripWWW s =
+        fromMaybe s (stripPrefix "www." s)
+
+      matchRegName :: String -> Repo -> Bool
+      matchRegName regName =
+        maybe False ((== regName) . stripWWW . uriRegName) . uriAuthority . Repo.unRepo
+
+      gitHubPolicy :: SSHSubPathPolicy
+      gitHubPolicy =
+        -- tail because the path will start a slash
+        (matchRegName "github.com", dropExtension . tail . uriPath . Repo.unRepo)
+
+      perfHaskellPolicy :: SSHSubPathPolicy
+      perfHaskellPolicy =
+        (matchRegName "git.haskell.org", takeBaseName . uriPath . Repo.unRepo)
+
+
+sshSubPathTestFailures :: [(Repo, String, String)]
+sshSubPathTestFailures =
+  (map (\(r, e) -> (r, e, sshSubPath r)) . filter isFailure)
+    [ (Repo.unsafeFromString "https://github.com/sgraf812/benchmark-test", "sgraf812/benchmark-test")
+    , (Repo.unsafeFromString "https://www.github.com/sgraf812/benchmark-test", "sgraf812/benchmark-test")
+    , (Repo.unsafeFromString "https://git.haskell.org/sgraf812/benchmark-test", "benchmark-test")
+    , (Repo.unsafeFromString "https://bitbucket.org/sgraf812/benchmark-test", "benchmark-test-2921196486978765793")
+    ]
+    where
+      isFailure (repo, expected) =
+        sshSubPath repo /= expected
+
+
+
 rsyncSite :: Repo -> String -> IO ()
 rsyncSite repo remoteDir = do
   projectDir <- Repo.projectDir repo
@@ -88,16 +138,12 @@ rsyncSite repo remoteDir = do
     siteDir =
       projectDir </> "site"
 
-    appendUniqueName :: String -> String
-    appendUniqueName remoteDir =
-      remoteDir </> Repo.uniqueName repo -- No one needs types
-
     rsync :: String -> IO ()
     rsync remoteDir = do
       executeIn Nothing "rsync"
         -- we need the trailing path separator, otherwise it will add a site
         -- sub directory
-        ["-a", addTrailingPathSeparator siteDir, appendUniqueName remoteDir]
+        ["-a", addTrailingPathSeparator siteDir, remoteDir </> sshSubPath repo]
       return ()
 
   case remoteDir of
