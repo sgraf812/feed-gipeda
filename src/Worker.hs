@@ -8,41 +8,30 @@ module Worker
     items.
 -}
 
-import           Control.Exception (mask, onException)
-import           Control.Monad     (unless)
-import           Data.Foldable     (find)
-import           Data.List         (stripPrefix)
-import           Data.Maybe        (fromMaybe)
-import qualified Data.Yaml         as Yaml
+import           Control.Monad    (unless, when)
+import           Data.Foldable    (find)
+import           Data.List        (stripPrefix)
+import           Data.Maybe       (fromMaybe)
+import qualified Data.Yaml        as Yaml
 import qualified GipedaSettings
-import           GitShell          (SHA)
-import           Network.URI       (URI, uriAuthority, uriPath, uriRegName,
-                                    uriToString)
-import           Repo              (Repo)
+import           GitShell         (SHA)
+import           Network.URI      (URI, uriAuthority, uriPath, uriRegName,
+                                   uriToString)
+import           Repo             (Repo)
 import qualified Repo
-import           System.Directory  (copyFile, createDirectoryIfMissing,
-                                    doesFileExist, removeFile)
-import           System.FilePath   (addTrailingPathSeparator, dropExtension,
-                                    dropFileName, takeBaseName, (<.>), (</>))
-import           System.IO         (IOMode (WriteMode), hClose, hPutStr,
-                                    openFile)
-import           System.Process    (cwd, proc, readCreateProcessWithExitCode)
+import           System.Directory (copyFile, createDirectoryIfMissing,
+                                   doesFileExist, removeFile)
+import           System.FilePath  (addTrailingPathSeparator, dropExtension,
+                                   dropFileName, takeBaseName, (<.>), (</>))
+import           System.IO        (IOMode (WriteMode), hClose, hPutStr,
+                                   openFile)
+import           System.Process   (cwd, proc, readCreateProcessWithExitCode)
 
 
 data WorkItem
   = Benchmark FilePath Repo SHA
   | Regenerate FilePath Repo String
   deriving (Eq, Ord, Show)
-
-
-writeFileDeleteOnException :: FilePath -> IO String -> IO ()
-writeFileDeleteOnException path action =
-  -- remove the file only when an exception happened, but close the handle
-  -- at all costs.
-  mask $ \restore -> do
-    handle <- openFile path WriteMode
-    restore (action >>= hPutStr handle) `onException` (hClose handle >> removeFile path)
-    hClose handle
 
 
 executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
@@ -161,13 +150,9 @@ work (Benchmark cloben repo commit) = do
 
   exists <- doesFileExist resultFile
   createDirectoryIfMissing True results
-  unless exists $
-    -- A poor man's mutex. Delete the file only if there occurred an error while
-    -- benchmarking (e.g. ctrl-c). Otherwise a re-run would not benchmark
-    -- the touched commit.
-    writeFileDeleteOnException resultFile $ do
-      putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
-      executeIn Nothing cloben [clone, commit]
+  when exists (putStrLn "Benchmarking a commit for which there already is a file. This is a failure, but nothing critic.")
+  putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
+  executeIn Nothing cloben [clone, commit] >>= writeFile resultFile
 work (Regenerate gipeda repo rsyncPath) = do
   -- Regenerate the site by re-running gipeda in the projectDir.
   project <- Repo.projectDir repo

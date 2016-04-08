@@ -14,8 +14,11 @@ module RepoWatcher
 import           Config                  (Config)
 import qualified Config
 import           Control.Concurrent      (threadDelay)
-import           Control.Concurrent.MVar (MVar, modifyMVar, newMVar, readMVar)
+import           Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_,
+                                          newMVar, readMVar)
 import           Control.Monad           (forever, unless, when)
+import           Data.Map                (Map)
+import qualified Data.Map                as Map
 import           Data.Maybe              (fromJust)
 import           Data.Set                (Set)
 import qualified Data.Set                as Set
@@ -35,20 +38,29 @@ type NewCommitsAction
   = Repo -> Set SHA -> IO ()
 
 
-fetchRepos :: NewCommitsAction -> Set Repo -> IO ()
-fetchRepos onNewCommits repos =
-  mapM_ fetchRepo (Set.toList repos)
+type Backlog
+  = Map Repo (Set SHA)
+
+
+fetchRepos :: NewCommitsAction -> MVar Backlog -> IO ()
+fetchRepos onNewCommits backlog = do
+  currentBacklog <- readMVar backlog
+  mapM_ fetchRepo (Map.assocs currentBacklog)
     where
-      fetchRepo :: Repo -> IO ()
-      fetchRepo repo =
-        unhandledCommits repo >>= onNewCommits repo
+      fetchRepo :: (Repo, Set SHA) -> IO ()
+      fetchRepo (repo, inProgress) = do
+        (unfinished, finished) <- commitDiff repo
+        -- Don't fire for commits already in progress
+        onNewCommits repo (Set.difference unfinished inProgress)
+        -- Set the backlog to all unfinished commits
+        modifyMVar_ backlog (return . Map.insert repo unfinished)
 
 
-{-| Unhandled commits of a repo are those where there is no corresponding
+{-| Unfinished commits of a repo are those where there is no corresponding
     file in the results directory needed by gipeda of the repo.
 -}
-unhandledCommits :: Repo -> IO (Set SHA)
-unhandledCommits repo = do
+commitDiff :: Repo -> IO (Set SHA, Set SHA)
+commitDiff repo = do
   path <- Repo.cloneDir repo
   hasClone <- GitShell.isRepositoryRoot path
   if hasClone
@@ -57,25 +69,39 @@ unhandledCommits repo = do
       allCommits <- GitShell.allCommits path
       resultsDir <- Repo.resultsDir repo
       createDirectoryIfMissing True resultsDir
-      alreadyHandledCommits <- getDirectoryContents resultsDir
-      (return . Set.difference allCommits . Set.fromList . map takeBaseName) alreadyHandledCommits
+      alreadyHandledCommits <- Set.fromList . map takeBaseName <$> getDirectoryContents resultsDir
+      return
+        ( Set.difference allCommits alreadyHandledCommits    -- unfinished
+        , Set.intersection allCommits alreadyHandledCommits) -- finished
     else do
       createDirectoryIfMissing True path
       GitShell.cloneBare repo path
-      GitShell.allCommits path
+      unfinished <- GitShell.allCommits path
+      return (unfinished, Set.empty)
 
 
-extractNewRepos :: MVar (Set Repo) -> Set Repo -> IO (Set Repo)
-extractNewRepos reposVar newRepos = do
+extractAddedRepos :: MVar Backlog -> Set Repo -> IO (Set Repo)
+extractAddedRepos backlog newRepos = do
   putStrLn "Extracting new repositories from the config file..."
-  modifyMVar reposVar $ \oldRepos ->
-    return (newRepos, Set.difference newRepos oldRepos)
+  modifyMVar backlog $ \oldBacklog -> do
+    let
+      addedKeys :: Set Repo
+      addedKeys =
+        Set.difference newRepos (Map.keysSet oldBacklog)
+
+      newBacklog :: Backlog
+      newBacklog =
+        Map.fromSet (const Set.empty) newRepos -- no commit is in flight for new repos
+
+    -- we have to take the keys from newRepos, but use the values
+    -- from oldBacklog where possible. So the following should do:
+    return ((oldBacklog `Map.union` newBacklog) `Map.intersection` newBacklog , addedKeys)
 
 
-periodicallyRefreshRepos :: NominalDiffTime -> NewCommitsAction -> MVar (Set Repo) -> IO ()
-periodicallyRefreshRepos dt onNewCommits repos = forever $ do
+periodicallyRefreshRepos :: NominalDiffTime -> NewCommitsAction -> MVar Backlog -> IO ()
+periodicallyRefreshRepos dt onNewCommits backlog = forever $ do
   begin <- Time.getCurrentTime
-  readMVar repos >>= fetchRepos onNewCommits
+  fetchRepos onNewCommits backlog
   end <- Time.getCurrentTime
   let elapsed = Time.diffUTCTime end begin
   threadDelay (ceiling ((dt - elapsed) * 1000000))
@@ -91,12 +117,12 @@ touchIfPresent f = do
 
 watchConfiguredRepos :: FilePath -> NominalDiffTime -> NewCommitsAction -> IO ()
 watchConfiguredRepos configFile dt onNewCommits = do
-  repos <- newMVar Set.empty
+  repos <- newMVar Map.empty
 
   let
     cloneAddedRepos :: Config -> IO ()
     cloneAddedRepos config =
-      extractNewRepos repos (Config.repos config) >>= fetchRepos onNewCommits
+      extractAddedRepos repos (Config.repos config) >> fetchRepos onNewCommits repos
 
     initialTouchAndFetchPeriodically :: IO ()
     initialTouchAndFetchPeriodically =
