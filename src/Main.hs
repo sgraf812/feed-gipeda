@@ -1,5 +1,4 @@
-import           ConcurrentQueueSet       (ConcurrentQueueSet)
-import qualified ConcurrentQueueSet
+import Control.Concurrent.Chan (Chan, newChan, writeChan, readChan)
 import qualified Config
 import           Control.Concurrent       (forkIO)
 import           Control.Monad            (forever, when)
@@ -15,7 +14,6 @@ import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
 import           System.Directory         (getAppUserDataDirectory)
 import           System.Exit              (exitSuccess)
 import           System.FilePath          ((</>))
-import           Worker                   (WorkItem ())
 import qualified Worker
 
 
@@ -54,13 +52,12 @@ main = do
     -- Handle the --check flag. Just perform a syntax check on the given configFile
     when check $ Config.checkFile configFile >>= maybe exitSuccess fail
 
-    workItems <- ConcurrentQueueSet.empty -- Work item queue between RepoWatcher and Worker
+    workItems <- newChan -- Work item queue between RepoWatcher and Worker
 
     let
       onNewCommits :: Repo -> Set SHA -> IO ()
-      onNewCommits repo commits = do
-        mapM_ (ConcurrentQueueSet.enqueue workItems . Worker.Benchmark cloben repo) commits
-        ConcurrentQueueSet.enqueue workItems (Worker.Regenerate gipeda repo rsyncPath)
+      onNewCommits repo =
+        mapM_ (writeChan workItems . \c -> (repo, c))
 
     -- We have to run the benchmark worker on the main thread so that asynchronous
     -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
@@ -78,4 +75,4 @@ main = do
     -- scripts.
     -- I'm unsure about whether this should be parallelized with multiple workers.
     -- Performance couldn't be compared among builds anymore.
-    forever $ ConcurrentQueueSet.dequeue workItems >>= Worker.work
+    forever $ readChan workItems >>= uncurry (Worker.benchmark gipeda cloben rsyncPath)

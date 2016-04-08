@@ -6,7 +6,7 @@
     since in reality it can only generate settings for @cloben@ output.
 -}
 
-module GipedaSettings
+module Gipeda
   ( GipedaSettings (..)
   , BenchmarkSettings (..)
   , settingsForRepo

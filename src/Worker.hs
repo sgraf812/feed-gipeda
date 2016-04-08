@@ -1,6 +1,6 @@
 module Worker
-  ( WorkItem (..)
-  , work
+  ( benchmark
+  , regenerateAndDeploy
   ) where
 
 {-| The 'meat' of the daemon. @work@ calls the @--benchmark@ script for
@@ -12,13 +12,15 @@ import           Control.Monad    (unless, when)
 import           Data.Foldable    (find)
 import           Data.List        (stripPrefix)
 import           Data.Maybe       (fromMaybe)
+import qualified Data.Set         as Set
 import qualified Data.Yaml        as Yaml
-import qualified GipedaSettings
+import qualified Gipeda
 import           GitShell         (SHA)
 import           Network.URI      (URI, uriAuthority, uriPath, uriRegName,
                                    uriToString)
 import           Repo             (Repo)
 import qualified Repo
+import qualified RepoWatcher
 import           System.Directory (copyFile, createDirectoryIfMissing,
                                    doesFileExist, removeFile)
 import           System.FilePath  (addTrailingPathSeparator, dropExtension,
@@ -26,12 +28,6 @@ import           System.FilePath  (addTrailingPathSeparator, dropExtension,
 import           System.IO        (IOMode (WriteMode), hClose, hPutStr,
                                    openFile)
 import           System.Process   (cwd, proc, readCreateProcessWithExitCode)
-
-
-data WorkItem
-  = Benchmark FilePath Repo SHA
-  | Regenerate FilePath Repo String
-  deriving (Eq, Ord, Show)
 
 
 executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
@@ -68,7 +64,7 @@ saveSettingsIfNotExists project repo = do
   let
     settingsFile = project </> "settings.yaml"
 
-  settings <- GipedaSettings.settingsForRepo repo
+  settings <- Gipeda.settingsForRepo repo
   exists <- doesFileExist settingsFile
   unless exists (Yaml.encodeFile settingsFile settings)
 
@@ -140,8 +136,8 @@ rsyncSite repo remoteDir = do
     _ -> rsync remoteDir
 
 
-work :: WorkItem -> IO ()
-work (Benchmark cloben repo commit) = do
+benchmark :: FilePath -> FilePath -> String -> Repo -> SHA -> IO ()
+benchmark gipeda cloben rsyncPath repo commit = do
   -- Handle a fresh commit by benchmarking
   clone <- Repo.cloneDir repo
   results <- Repo.resultsDir repo
@@ -150,12 +146,20 @@ work (Benchmark cloben repo commit) = do
 
   exists <- doesFileExist resultFile
   createDirectoryIfMissing True results
-  when exists (putStrLn "Benchmarking a commit for which there already is a file. This is a failure, but nothing critic.")
+  when exists $
+    putStrLn "Benchmarking a commit for which there already is a file. This is a bug, but nothing critical."
   putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
   executeIn Nothing cloben [clone, commit] >>= writeFile resultFile
-work (Regenerate gipeda repo rsyncPath) = do
-  -- Regenerate the site by re-running gipeda in the projectDir.
+
+  -- Regenerate and deploy gipeda assets as necessary
+  (unfinished, _) <- RepoWatcher.commitDiff repo
+  when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repo)
+
+
+regenerateAndDeploy :: FilePath -> String -> Repo -> IO ()
+regenerateAndDeploy gipeda rsyncPath repo = do
   project <- Repo.projectDir repo
+  putStrLn ("Regenerating " ++ project)
   createDirectoryIfMissing True (project </> "site" </> "js")
   installJsLibs gipeda project
   saveSettingsIfNotExists project repo

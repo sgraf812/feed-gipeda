@@ -8,6 +8,7 @@
 
 module RepoWatcher
   ( watchConfiguredRepos
+  , commitDiff
   ) where
 
 
@@ -72,7 +73,8 @@ commitDiff repo = do
       alreadyHandledCommits <- Set.fromList . map takeBaseName <$> getDirectoryContents resultsDir
       return
         ( Set.difference allCommits alreadyHandledCommits    -- unfinished
-        , Set.intersection allCommits alreadyHandledCommits) -- finished
+        , Set.intersection allCommits alreadyHandledCommits  -- finished
+        )
     else do
       createDirectoryIfMissing True path
       GitShell.cloneBare repo path
