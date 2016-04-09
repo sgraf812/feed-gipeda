@@ -116,28 +116,22 @@ sshSubPathTestFailures =
 
 
 
-rsyncSite :: Repo -> String -> IO ()
-rsyncSite repo remoteDir = do
+rsyncSite :: Repo -> Maybe String -> IO ()
+rsyncSite repo = maybe (return ()) $ \remoteDir -> do
   projectDir <- Repo.projectDir repo
+  -- we need the trailing path separator, otherwise it will add a site
+  -- sub directory
+  executeIn Nothing "rsync"
+    [ "-a"
+    , addTrailingPathSeparator (projectDir </> "site")
+    , remoteDir </> sshSubPath repo
+    ]
 
-  let
-    siteDir =
-      projectDir </> "site"
-
-    rsync :: String -> IO ()
-    rsync remoteDir = do
-      executeIn Nothing "rsync"
-        -- we need the trailing path separator, otherwise it will add a site
-        -- sub directory
-        ["-a", addTrailingPathSeparator siteDir, remoteDir </> sshSubPath repo]
-      return ()
-
-  case remoteDir of
-    [] -> return ()
-    _ -> rsync remoteDir
+  return ()
 
 
-finalize :: FilePath -> String -> Repo -> SHA -> String -> IO ()
+
+finalize :: FilePath -> Maybe String -> Repo -> SHA -> String -> IO ()
 finalize gipeda rsyncPath repo commit result = do
   results <- Repo.resultsDir repo
   writeFile (results </> commit <.> "csv") result
@@ -146,8 +140,8 @@ finalize gipeda rsyncPath repo commit result = do
   when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repo)
 
 
-benchmark :: FilePath -> FilePath -> String -> Repo -> SHA -> IO String
-benchmark gipeda cloben rsyncPath repo commit = do
+benchmark :: FilePath -> Repo -> SHA -> IO String
+benchmark cloben repo commit = do
   -- Handle a fresh commit by benchmarking
   clone <- Repo.cloneDir repo
   results <- Repo.resultsDir repo
@@ -162,7 +156,7 @@ benchmark gipeda cloben rsyncPath repo commit = do
   executeIn Nothing cloben [clone, commit]
 
 
-regenerateAndDeploy :: FilePath -> String -> Repo -> IO ()
+regenerateAndDeploy :: FilePath -> Maybe String -> Repo -> IO ()
 regenerateAndDeploy gipeda rsyncPath repo = do
   project <- Repo.projectDir repo
   putStrLn ("Regenerating " ++ project)

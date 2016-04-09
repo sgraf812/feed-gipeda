@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes    #-}
 
 module Distributed
   ( worker
@@ -7,17 +7,17 @@ module Distributed
   ) where
 
 
-import Repo (Repo)
-import GitShell (SHA)
-import System.ZMQ4.Monadic
-import Control.Concurrent.Chan (newChan, writeChan, readChan)
-import Control.Concurrent.MVar (newMVar, modifyMVar_, modifyMVar)
-import Control.Monad (forever)
-import Data.Set (Set)
-import qualified Data.Set as Set
-import GHC.Generics (Generic)
-import Data.Binary (Binary (..), encode, decode)
-import qualified Data.ByteString.Lazy as LBS
+import           Control.Concurrent.Chan (newChan, readChan, writeChan)
+import           Control.Concurrent.MVar (modifyMVar, modifyMVar_, newMVar)
+import           Control.Monad           (forever)
+import           Data.Binary             (Binary (..), decode, encode)
+import qualified Data.ByteString.Lazy    as LBS
+import           Data.Set                (Set)
+import qualified Data.Set                as Set
+import           GHC.Generics            (Generic)
+import           GitShell                (SHA)
+import           Repo                    (Repo)
+import           System.ZMQ4.Monadic
 
 
 data WorkerToBrokerMessage
@@ -87,7 +87,6 @@ withBroker endpoint finalizer inner = runZMQ $ do
     sendSerialized sock work
 
   liftIO (inner (\repo commit -> writeChan workItems (Work repo commit)))
-
 
 
 worker :: String -> (Repo -> SHA -> IO String) -> IO ()
