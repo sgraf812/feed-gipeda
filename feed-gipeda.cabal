@@ -31,3 +31,6 @@ executable feed-gipeda
                      , time >= 1.5 && < 2.0
                      , turtle >= 1.2.0 && < 1.3.0
                      , data-default
+                     , zeromq4-haskell >= 0.5
+                     , binary >= 0.7.0.0
+                     , bytestring >= 0.10.0.0

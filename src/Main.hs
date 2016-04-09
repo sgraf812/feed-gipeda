@@ -15,6 +15,8 @@ import           System.Directory         (getAppUserDataDirectory)
 import           System.Exit              (exitSuccess)
 import           System.FilePath          ((</>))
 import qualified Worker
+import qualified Distributed
+import System.ZMQ4.Monadic (ZMQ, async, liftIO)
 
 
 data CmdArgs
@@ -52,27 +54,29 @@ main = do
     -- Handle the --check flag. Just perform a syntax check on the given configFile
     when check $ Config.checkFile configFile >>= maybe exitSuccess fail
 
-    workItems <- newChan -- Work item queue between RepoWatcher and Worker
+    let endpoint = "ipc://feed-gipeda.ipc"
 
-    let
-      onNewCommits :: Repo -> Set SHA -> IO ()
-      onNewCommits repo =
-        mapM_ (writeChan workItems . \c -> (repo, c))
+    Distributed.withBroker endpoint (Worker.finalize gipeda rsyncPath) $ \send -> do
 
-    -- We have to run the benchmark worker on the main thread so that asynchronous
-    -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
-    -- .log file).
+      let
+        onNewCommits :: Repo -> Set SHA -> IO ()
+        onNewCommits repo =
+          mapM_ (send repo)
 
-    -- Each time the config file @f@ changes, we @cloneAddedRepos@ (New repos with
-    -- new SHAs).
-    -- We also touch the config file initially (recognizing local clones and
-    -- already benchmarked commits) and check all clones for updated remotes
-    -- (old Repos, new SHAs).
-    -- New @(Repo, SHA)@ pairs notify the @onNewCommits@ handler, which will
-    -- push @WorkItem@s along the @workItems@ queue to the worker.
-    forkIO (RepoWatcher.watchConfiguredRepos configFile (fromIntegral dt) onNewCommits)
-    -- Performs the benchmarking and site generation by calling the appropriate
-    -- scripts.
-    -- I'm unsure about whether this should be parallelized with multiple workers.
-    -- Performance couldn't be compared among builds anymore.
-    forever $ readChan workItems >>= uncurry (Worker.benchmark gipeda cloben rsyncPath)
+      -- We have to run the benchmark worker on the main thread so that asynchronous
+      -- @UserInterrupt@s are handled correspondingly (e.g. by deleting the touched
+      -- .log file).
+
+      -- Each time the config file @f@ changes, we @cloneAddedRepos@ (New repos with
+      -- new SHAs).
+      -- We also touch the config file initially (recognizing local clones and
+      -- already benchmarked commits) and check all clones for updated remotes
+      -- (old Repos, new SHAs).
+      -- New @(Repo, SHA)@ pairs notify the @onNewCommits@ handler, which will
+      -- push @WorkItem@s along the @workItems@ queue to the worker.
+      forkIO (RepoWatcher.watchConfiguredRepos configFile (fromIntegral dt) onNewCommits)
+      -- Performs the benchmarking and site generation by calling the appropriate
+      -- scripts.
+      -- I'm unsure about whether this should be parallelized with multiple workers.
+      -- Performance couldn't be compared among builds anymore.
+      Distributed.worker endpoint (Worker.benchmark gipeda cloben rsyncPath)

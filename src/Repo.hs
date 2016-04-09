@@ -18,6 +18,7 @@ module Repo
   ) where
 
 
+import           Data.Binary      (Binary (..))
 import qualified Data.Hash        as Hash
 import           Data.Maybe       (fromJust)
 import           Data.Set         (Set)
@@ -31,6 +32,11 @@ import           System.FilePath  (takeFileName, (</>))
 newtype Repo = Repo
   { unRepo :: URI
   } deriving (Eq, Ord, Show)
+
+
+instance Binary Repo where
+  get = unsafeFromString <$> get
+  put = put . uri
 
 
 unsafeFromString :: String -> Repo

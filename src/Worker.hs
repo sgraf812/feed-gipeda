@@ -1,6 +1,7 @@
 module Worker
   ( benchmark
   , regenerateAndDeploy
+  , finalize
   ) where
 
 {-| The 'meat' of the daemon. @work@ calls the @--benchmark@ script for
@@ -136,7 +137,16 @@ rsyncSite repo remoteDir = do
     _ -> rsync remoteDir
 
 
-benchmark :: FilePath -> FilePath -> String -> Repo -> SHA -> IO ()
+finalize :: FilePath -> String -> Repo -> SHA -> String -> IO ()
+finalize gipeda rsyncPath repo commit result = do
+  results <- Repo.resultsDir repo
+  writeFile (results </> commit <.> "csv") result
+  -- Regenerate and deploy gipeda assets as necessary
+  (unfinished, _) <- RepoWatcher.commitDiff repo
+  when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repo)
+
+
+benchmark :: FilePath -> FilePath -> String -> Repo -> SHA -> IO String
 benchmark gipeda cloben rsyncPath repo commit = do
   -- Handle a fresh commit by benchmarking
   clone <- Repo.cloneDir repo
@@ -149,11 +159,7 @@ benchmark gipeda cloben rsyncPath repo commit = do
   when exists $
     putStrLn "Benchmarking a commit for which there already is a file. This is a bug, but nothing critical."
   putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
-  executeIn Nothing cloben [clone, commit] >>= writeFile resultFile
-
-  -- Regenerate and deploy gipeda assets as necessary
-  (unfinished, _) <- RepoWatcher.commitDiff repo
-  when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repo)
+  executeIn Nothing cloben [clone, commit]
 
 
 regenerateAndDeploy :: FilePath -> String -> Repo -> IO ()

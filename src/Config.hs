@@ -14,7 +14,7 @@ import           Data.Yaml       (FromJSON (..), Value (Object), (.:))
 import qualified Data.Yaml       as Yaml
 import           Network.URI     (parseURI)
 import           Repo            (Repo (..))
-import qualified Repo            as Repo
+import qualified Repo
 import           System.FilePath (dropFileName, equalFilePath)
 import qualified System.FSNotify as FS
 
