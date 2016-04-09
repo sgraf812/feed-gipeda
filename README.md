@@ -16,7 +16,7 @@ After a number of `--benchmark` runs a `--gipeda` run follows to update the gene
 
 ## How to get it to run
 
-After having a working `gipeda` installation, the following steps should get you started (using `cabal` in a similar):
+After having a working `gipeda` installation and installed ZeroMQ 4.* through your packagemanager (e.g. `sudo apt-get install libzmq3-dev`), the following steps should get you started (using `cabal` in a similar):
 ```
 $ git clone https://github.com/sgraf812/cloben
 $ cd cloben; stack install; cd ..
