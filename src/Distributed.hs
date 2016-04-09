@@ -73,7 +73,7 @@ withBroker endpoint finalizer inner = runZMQ $ do
 
     msg <- receiveDeserialized sock
     case msg of
-      Ready -> return ()
+      Ready -> liftIO $ putStrLn "New worker"
       Return repo sha result -> liftIO (finalizer repo sha result)
 
   -- Also actually send workitems on another thread. Otherwise, the ZMQ context
