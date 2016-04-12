@@ -15,7 +15,6 @@ import           System.Console.ArgParser (Descr (..), ParserSpec, andBy,
 import           System.Directory         (getAppUserDataDirectory)
 import           System.Exit              (exitSuccess)
 import           System.FilePath          ((</>))
-import           System.ZMQ4.Monadic      (ZMQ, async, liftIO)
 import qualified Worker
 
 
@@ -23,7 +22,7 @@ data CmdArgs
   = CmdArgs
   { benchmarkScript :: FilePath
   , gipeda          :: FilePath
-  , configFile      :: FilePath
+  , configFile      :: Maybe FilePath
   , fetchInterval   :: Int
   , check           :: Bool
   , rsyncPath       :: Maybe String
@@ -36,13 +35,13 @@ maybeFlag key =
   optFlagArgs Nothing key Nothing (const Just)
 
 
-cmdParser :: FilePath -> ParserSpec CmdArgs
-cmdParser configFile = CmdArgs
+cmdParser :: ParserSpec CmdArgs
+cmdParser = CmdArgs
   `parsedBy` optFlag "cloben" "benchmark" `Descr` "Benchmark script which will be"
   ++ " supplied the repository to name and specific commit to benchmark"
   `andBy` optFlag "gipeda" "gipeda" `Descr` "Path to the gipeda executable"
   ++ " the directory of which includes assets such as site/ scaffolding and install-jslibs.sh"
-  `andBy` optFlag configFile "config" `Descr` "Path to the YAML file containing"
+  `andBy` maybeFlag "config" `Descr` "Path to the YAML file containing"
   ++ " a list of watched repositories. Will be watched for changes."
   ++ " Defaults to the .feed-gipeda/feed-gipeda.yaml sub path under"
   ++ " $HOME resp. %APPDATA%/Roaming/"
@@ -58,10 +57,12 @@ cmdParser configFile = CmdArgs
 
 
 main :: IO ()
-main = do
-  configFile <- getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml")
-  withParseResult (cmdParser configFile) $
-    \(CmdArgs cloben gipeda configFile dt check rsyncPath master slave) -> do
+main = withParseResult cmdParser $
+  \(CmdArgs cloben gipeda configFile' dt check rsyncPath master slave) -> do
+    configFile <- maybe
+      (getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml"))
+      return
+      configFile'
     -- Handle the --check flag. Just perform a syntax check on the given configFile
     when check $ Config.checkFile configFile >>= maybe exitSuccess fail
 
