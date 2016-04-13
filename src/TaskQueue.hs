@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module TaskQueue
   ( TaskQueue
   , start
   , execute
+  , work
   ) where
 
 
@@ -12,7 +14,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (isNothing)
-import Control.Distributed.Process.Backend.SimpleLocalnet (Backend (..), startSlave)
+import Control.Distributed.Process.Backend.SimpleLocalnet (Backend (..), findSlaves, startSlave)
 import Control.Distributed.Process hiding (call)
 import Control.Distributed.Process.Serializable
 import Control.Distributed.Process.ManagedProcess
@@ -28,26 +30,25 @@ import Control.Distributed.Process.Extras.Time
 import Control.Distributed.Process.Async
 import Data.Sequence (Seq, (<|), (|>), ViewL (..))
 import qualified Data.Sequence as Seq
+import Data.Proxy
 
 
-newtype TaskQueue
+newtype TaskQueue a
   = TaskQueue ProcessId
 
 
-instance Resolvable TaskQueue where
+instance Resolvable (TaskQueue a) where
   resolve (TaskQueue pid) = return (Just pid)
 
 
-data Task
-  = Task Repo SHA
-  deriving (Eq, Ord, Show, Generic, Typeable)
-instance Binary Task
+type Task a
+  = (Static (SerializableDict a), Closure (Process a))
 
 
-newtype Result
-  = Result String
+newtype Result a
+  = Result a
   deriving (Eq, Ord, Show, Generic, Typeable)
-instance Binary Result
+instance Binary a => Binary (Result a)
 
 
 newtype SlaveListChanged
@@ -56,47 +57,50 @@ newtype SlaveListChanged
 instance Binary SlaveListChanged
 
 
-data QueueState
+data QueueState a
   = QueueState
   { slaves :: Map NodeId (Maybe MonitorRef)
-  , active :: Map MonitorRef (NodeId, Async String, CallRef String, Task)
-  , onHold :: Seq (CallRef String, Task)
+  , active :: Map MonitorRef (NodeId, Async a, CallRef a, Task a)
+  , onHold :: Seq (CallRef a, Task a)
   }
 
 
-initialQueueState :: QueueState
+initialQueueState :: QueueState a
 initialQueueState =
   QueueState Map.empty Map.empty Seq.empty
 
 
 start
-  :: Backend
-  -> Static (SerializableDict String)
-  -> ((Repo, SHA) -> Closure (Process String))
-  -> Process TaskQueue
-start backend dict work = do
-  queue <- TaskQueue <$> spawnLocal (queue dict work)
+  :: forall a . Serializable a
+  => Backend
+  -> Process (TaskQueue a)
+start backend = do
+  queue <- TaskQueue <$> spawnLocal (queue (Proxy :: Proxy a))
   spawnLocal (slaveDiscovery backend queue)
   return queue
 
 
 execute
-  :: TaskQueue
-  -> Repo
-  -> SHA
-  -> Process String
-execute queue repo sha =
-  call queue (Task repo sha)
+  :: Serializable a
+  => TaskQueue a
+  -> Static (SerializableDict a)
+  -> Closure (Process a)
+  -> Process a
+execute queue dict closure =
+  call queue (dict, closure)
 
 
-queue :: Static (SerializableDict String) -> ((Repo, SHA) -> Closure (Process String)) -> Process ()
-queue dict work = serve () init process
+queue
+  :: forall a . Serializable a
+  => Proxy a
+  -> Process ()
+queue _ = serve () init process
   where
-    init :: InitHandler () QueueState
+    init :: InitHandler () (QueueState a)
     init () =
       return (InitOk initialQueueState Infinity)
 
-    process :: ProcessDefinition QueueState
+    process :: ProcessDefinition (QueueState a)
     process = defaultProcess
       { apiHandlers =
           [ handleCast onSlaveListChanged
@@ -108,14 +112,14 @@ queue dict work = serve () init process
       , unhandledMessagePolicy = Log
       }
 
-    assignTasks :: QueueState -> Process QueueState
+    assignTasks :: QueueState a -> Process (QueueState a)
     assignTasks qs@(QueueState slaves active onHold) = do
       let
         idle :: Set NodeId
         idle =
           Map.keysSet (Map.filter isNothing slaves)
 
-        assignment :: Maybe (NodeId, CallRef String, Task)
+        assignment :: Maybe (NodeId, CallRef a, Task a)
         assignment = do
           node <- fst <$> Set.minView idle
           (ref, task) <- case Seq.viewl onHold of
@@ -125,26 +129,32 @@ queue dict work = serve () init process
 
       case assignment of
         Nothing -> return qs
-        Just (node, callRef, task@(Task repo sha)) -> do
-          handle <- async (remoteTask dict node (work (repo, sha)))
+        Just (node, callRef, (dict, closure)) -> do
+          say $ "Assigning node " ++ show node ++ " to a task"
+          handle <- async (remoteTask dict node closure)
           monitorRef <- monitorAsync handle
           return qs
             { slaves = Map.insert node (Just monitorRef) slaves
             , onHold = Seq.drop 1 onHold
-            , active = Map.insert monitorRef (node, handle, callRef, task) active
+            , active = Map.insert monitorRef (node, handle, callRef, (dict, closure)) active
             }
 
-    onNewTask :: QueueState -> CallRef String -> Task -> Process (ProcessReply String QueueState)
+    onNewTask
+      :: QueueState a
+      -> CallRef a
+      -> Task a
+      -> Process (ProcessReply a (QueueState a))
     onNewTask qs ref task =
       assignTasks (qs { onHold = onHold qs |> (ref, task) }) >>= noReply_
 
-    onTaskCompleted :: QueueState -> ProcessMonitorNotification -> Process (ProcessAction QueueState)
+    onTaskCompleted
+      :: QueueState a
+      -> ProcessMonitorNotification
+      -> Process (ProcessAction (QueueState a))
     onTaskCompleted qs (ProcessMonitorNotification monitorRef _ _) =
       let
         withoutRef =
           Map.delete monitorRef (active qs)
-        withIdleSlave nodeId =
-          Map.adjust (const Nothing) nodeId (slaves qs)
         reenqueue callRef task =
           (callRef, task) <| onHold qs
       in
@@ -155,21 +165,25 @@ queue dict work = serve () init process
             case result of
               AsyncDone ret -> do
                 qs' <- assignTasks qs
-                  { slaves = withIdleSlave node
+                  { slaves = Map.adjust (const Nothing) node (slaves qs)
                   , active = withoutRef
                   }
                 replyTo callRef ret
                 continue qs'
               AsyncPending -> fail "Waited for an async task, but still pending"
               _ -> do
+                say (show node ++ " failed. Reassigning task.")
                 qs' <- assignTasks qs
-                  { slaves = withIdleSlave node
+                  { slaves = Map.delete node (slaves qs) -- temporarily blacklist the failing node
                   , active = withoutRef
                   , onHold = reenqueue callRef task
                   }
                 continue qs'
 
-    onSlaveListChanged :: QueueState -> SlaveListChanged -> Process (ProcessAction QueueState)
+    onSlaveListChanged
+      :: QueueState a
+      -> SlaveListChanged
+      -> Process (ProcessAction (QueueState a))
     onSlaveListChanged qs (SlaveListChanged slaveSet) =
       assignTasks (qs { slaves = slaves qs `Map.union` newSlaves `Map.intersection` newSlaves }) >>= continue
         where
@@ -177,12 +191,13 @@ queue dict work = serve () init process
             Map.fromSet (const Nothing) slaveSet
 
 
-slaveDiscovery :: Backend -> TaskQueue -> Process ()
+slaveDiscovery :: Backend -> TaskQueue a -> Process ()
 slaveDiscovery backend queue = forever $ do
-  slaves <- Set.fromList <$> liftIO (findPeers backend 1000000)
-  cast queue (SlaveListChanged slaves)
-  liftIO $ threadDelay (30 * 1000000)
+  self <- getSelfNode
+  slaves <- Set.fromList . map processNodeId <$> findSlaves backend
+  --say $ show slaves
+  cast queue (SlaveListChanged (Set.delete self slaves))
 
 
-startWorker :: Backend -> IO ()
-startWorker = startSlave
+work :: Backend -> IO ()
+work = startSlave
