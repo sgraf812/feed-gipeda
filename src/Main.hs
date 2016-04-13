@@ -44,6 +44,7 @@ data CmdArgs
   { benchmarkScript :: FilePath
   , gipeda          :: FilePath
   , configFile      :: Maybe FilePath
+  , oneShot :: Bool
   , fetchInterval   :: Int
   , check           :: Bool
   , rsyncPath       :: Maybe String
@@ -66,6 +67,8 @@ cmdParser = CmdArgs
   ++ " a list of watched repositories. Will be watched for changes."
   ++ " Defaults to the .feed-gipeda/feed-gipeda.yaml sub path under"
   ++ " $HOME resp. %APPDATA%/Roaming/"
+  `andBy` boolFlag "one-shot" `Descr` "Fetch updated repositories only once and"
+  ++ " exit after all new commits have been handled."
   `andBy` optFlag (60*60) "dt" `Descr` "Fetch interval for all repos in seconds."
   ++ " Defaults to 60*60 ~= 1 hour"
   `andBy` boolFlag "check" `Descr` "Verify that the given config file is well-formed and exit"
@@ -91,7 +94,7 @@ remoteTable =
 
 main :: IO ()
 main = withParseResult cmdParser $
-  \(CmdArgs cloben gipeda configFile' dt check rsyncPath master slave) -> do
+  \(CmdArgs cloben gipeda configFile' oneShot dt check rsyncPath master slave) -> do
     configFile <- maybe
       (getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml"))
       return
@@ -149,4 +152,6 @@ main = withParseResult cmdParser $
             onNewCommits repo =
               mapM_ (\commit -> writeChan deferredEvents (repo, commit))
 
-          liftIO (RepoWatcher.watchConfiguredRepos configFile (fromIntegral dt) onNewCommits)
+          if oneShot
+            then liftIO (RepoWatcher.watchConfiguredRepos configFile Nothing onNewCommits)
+            else liftIO (RepoWatcher.watchConfiguredRepos configFile (Just (fromIntegral dt)) onNewCommits)

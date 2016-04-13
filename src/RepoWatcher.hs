@@ -117,17 +117,19 @@ touchIfPresent f = do
       length contents `seq` writeFile f contents
 
 
-watchConfiguredRepos :: FilePath -> NominalDiffTime -> NewCommitsAction -> IO ()
+watchConfiguredRepos :: FilePath -> Maybe NominalDiffTime -> NewCommitsAction -> IO ()
 watchConfiguredRepos configFile dt onNewCommits = do
-  repos <- newMVar Map.empty
+  backlog <- newMVar Map.empty
 
   let
     cloneAddedRepos :: Config -> IO ()
-    cloneAddedRepos config =
-      extractAddedRepos repos (Config.repos config) >> fetchRepos onNewCommits repos
+    cloneAddedRepos config = do
+      extractAddedRepos backlog (Config.repos config)
+      fetchRepos onNewCommits backlog
 
     initialTouchAndFetchPeriodically :: IO ()
-    initialTouchAndFetchPeriodically =
-      touchIfPresent configFile >> periodicallyRefreshRepos dt onNewCommits repos
+    initialTouchAndFetchPeriodically = do
+      touchIfPresent configFile
+      maybe (return ()) (\dt' -> periodicallyRefreshRepos dt' onNewCommits backlog) dt
 
   Config.withWatchFile configFile cloneAddedRepos initialTouchAndFetchPeriodically
