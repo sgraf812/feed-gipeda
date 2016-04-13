@@ -71,10 +71,10 @@ cmdParser = CmdArgs
   `andBy` boolFlag "check" `Descr` "Verify that the given config file is well-formed and exit"
   `andBy` maybeFlag "rsync" `Descr` "ssh path under which to deploy site/ folders"
   ++ " with rsync"
-  `andBy` maybeFlag "master" `Descr` "Start in master mode, distributing work items at"
-  ++ " the given TCP port number."
-  `andBy` maybeFlag "slave" `Descr` "Start in slave mode, requesting work items from"
-  ++ " the given TCP endpoint (ipadress:portnumber)."
+  `andBy` maybeFlag "master" `Descr` "Start in master mode, distributing work items."
+  ++ " Identified via the given TCP endpoint (ipadress:portnumber)."
+  `andBy` maybeFlag "slave" `Descr` "Start in slave mode, requesting work items from a master node."
+  ++ " Identified via the given TCP endpoint (ipadress:portnumber)."
 
 
 parseEndpoint :: String -> IO (String, String)
