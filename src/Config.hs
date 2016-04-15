@@ -3,6 +3,7 @@
 module Config
   ( Config (..)
   , withWatchFile
+  , decodeFileAndNotify
   , checkFile
   ) where
 

@@ -130,7 +130,7 @@ queue _ = serve () init process
       case assignment of
         Nothing -> return qs
         Just (node, callRef, (dict, closure)) -> do
-          say $ "Assigning node " ++ show node ++ " to a task"
+          --say $ "Assigning node " ++ show node ++ " to a task"
           handle <- async (remoteTask dict node closure)
           monitorRef <- monitorAsync handle
           return qs

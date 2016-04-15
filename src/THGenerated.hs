@@ -22,9 +22,9 @@ benchmarkProcess (cloben, repo, sha) =
 remotable ['benchmarkProcess]
 
 
-benchmarkClosure :: (FilePath, Repo, SHA) -> Closure (Process String)
-benchmarkClosure =
-  $(mkClosure 'benchmarkProcess)
+benchmarkClosure :: FilePath -> Repo -> SHA -> Closure (Process String)
+benchmarkClosure cloben repo commit =
+  $(mkClosure 'benchmarkProcess) (cloben, repo, commit)
 
 
 stringDict :: Static (SerializableDict String)

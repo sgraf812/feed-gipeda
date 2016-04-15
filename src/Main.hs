@@ -44,7 +44,7 @@ data CmdArgs
   { benchmarkScript :: FilePath
   , gipeda          :: FilePath
   , configFile      :: Maybe FilePath
-  , oneShot :: Bool
+  , oneShot         :: Bool
   , fetchInterval   :: Int
   , check           :: Bool
   , rsyncPath       :: Maybe String
@@ -127,31 +127,14 @@ main = withParseResult cmdParser $
         runProcess node $ do
           taskQueue <- TaskQueue.start backend
 
-          -- Performs the benchmarking and site generation by calling the appropriate
-          -- scripts in a separate process, listening for new repos and commits
-          -- though a channel. That's necessary because RepoWatcher's NewCommitsAction
-          -- has IO () in negative position (as opposed to Process ())
-          deferredEvents <- liftIO newChan
-          spawnLocal $ forever $ do
-            (repo, commit) <- liftIO (readChan deferredEvents)
-            spawnLocal $ do
+          let
+            onNewCommit :: Repo -> SHA -> Process ()
+            onNewCommit repo commit = do
               result <- TaskQueue.execute taskQueue
                 THGenerated.stringDict
-                (THGenerated.benchmarkClosure (cloben, repo, commit))
+                (THGenerated.benchmarkClosure cloben repo commit)
               liftIO (Worker.finalize gipeda rsyncPath repo commit result)
 
-          -- Each time the config file @f@ changes, we @cloneAddedRepos@ (New repos with
-          -- new SHAs).
-          -- We also touch the config file initially (recognizing local clones and
-          -- already benchmarked commits) and check all clones for updated remotes
-          -- (old Repos, new SHAs).
-          -- New @(Repo, SHA)@ pairs notify the @onNewCommits@ handler, which will
-          -- push @WorkItem@s along the @workItems@ queue to the worker.
-          let
-            onNewCommits :: Repo -> Set SHA -> IO ()
-            onNewCommits repo =
-              mapM_ (\commit -> writeChan deferredEvents (repo, commit))
-
           if oneShot
-            then liftIO (RepoWatcher.watchConfiguredRepos configFile Nothing onNewCommits)
-            else liftIO (RepoWatcher.watchConfiguredRepos configFile (Just (fromIntegral dt)) onNewCommits)
+            then RepoWatcher.watchConfiguredRepos configFile Nothing onNewCommit
+            else RepoWatcher.watchConfiguredRepos configFile (Just (fromIntegral dt)) onNewCommit
