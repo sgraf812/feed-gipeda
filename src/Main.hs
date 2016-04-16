@@ -128,12 +128,12 @@ main = withParseResult cmdParser $
           taskQueue <- TaskQueue.start backend
 
           let
-            onNewCommit :: Repo -> SHA -> Process ()
-            onNewCommit repo commit = do
+            onNewCommit :: Set Repo -> Repo -> SHA -> Process ()
+            onNewCommit repos repo commit = do
               result <- TaskQueue.execute taskQueue
                 THGenerated.stringDict
                 (THGenerated.benchmarkClosure cloben repo commit)
-              liftIO (Worker.finalize gipeda rsyncPath repo commit result)
+              liftIO (Worker.finalize gipeda rsyncPath repos repo commit result)
 
           if oneShot
             then RepoWatcher.watchConfiguredRepos configFile Nothing onNewCommit

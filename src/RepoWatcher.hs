@@ -40,11 +40,11 @@ import           System.FilePath             (takeBaseName)
 
 
 type NewCommitAction
-  = Repo -> SHA -> Process ()
+  = Set Repo -> Repo -> SHA -> Process ()
 
 
 type NewCommitsAction
-  = Repo -> Set SHA -> IO ()
+  = Set Repo -> Repo -> Set SHA -> IO ()
 
 
 type Backlog
@@ -69,7 +69,8 @@ fetchRepos onNewCommits backlog = do
         -- Set the backlog to all unfinished commits
         modifyMVar_ backlog (return . Map.insert repo unfinished)
         -- Don't fire for commits already in progress
-        onNewCommits repo (Set.difference unfinished inProgress)
+        repos <- Map.keysSet <$> readMVar backlog
+        onNewCommits repos repo (Set.difference unfinished inProgress)
 
 
 {-| Unfinished commits of a repo are those where there is no corresponding
@@ -127,12 +128,17 @@ touchIfPresent f = do
     length contents `seq` writeFile f contents
 
 
-watchConfiguredRepos :: FilePath -> Maybe NominalDiffTime -> NewCommitAction -> Process ()
+watchConfiguredRepos
+  :: FilePath
+  -> Maybe NominalDiffTime
+  -> NewCommitAction
+  -> Process ()
 watchConfiguredRepos configFile dt onNewCommit = do
   backlog <- liftIO (newMVar Map.empty)
   allFinishedEvent <- liftIO newEmptyMVar
   unfinishedRepos <- liftIO (newMVar Set.empty)
-  deferredEvents <- liftIO newChan
+  commitEvents <- liftIO newChan
+  repoEvents <- liftIO newChan
 
   let
     oneShot :: Bool
@@ -149,8 +155,8 @@ watchConfiguredRepos configFile dt onNewCommit = do
           return (Map.keysSet (Map.filter (not . Set.null) bl))
 
     onNewCommits :: NewCommitsAction
-    onNewCommits repo commits =
-      writeChan deferredEvents (repo, commits)
+    onNewCommits repos repo commits =
+      writeChan commitEvents (repos, repo, commits)
 
     waitAction :: IO ()
     waitAction =
@@ -174,9 +180,9 @@ watchConfiguredRepos configFile dt onNewCommit = do
   -- Also this way we can detect when all commits are handled and we can quit
   -- (in the case of --one-shot)
   spawnLocal $ forever $ do
-    (repo, commits) <- liftIO (readChan deferredEvents)
+    (repos, repo, commits) <- liftIO (readChan commitEvents)
     forM_ commits $ \commit -> spawnLocal $ do
-      onNewCommit repo commit
+      onNewCommit repos repo commit
       liftIO $ when (isNothing dt) $ do
         -- In this case we have to detect when all commits are handled
         allCommitsHandled <- Set.null . fst <$> liftIO (commitDiff repo)

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module TaskQueue
@@ -9,28 +9,35 @@ module TaskQueue
   ) where
 
 
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Maybe (isNothing)
-import Control.Distributed.Process.Backend.SimpleLocalnet (Backend (..), findSlaves, startSlave)
-import Control.Distributed.Process hiding (call)
-import Control.Distributed.Process.Serializable
-import Control.Distributed.Process.ManagedProcess
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
-import GHC.Generics (Generic)
-import Data.Typeable (Typeable)
-import Data.Binary (Binary)
-import GitShell (SHA)
-import Repo (Repo)
-import Control.Distributed.Process.Extras hiding (send, call)
-import Control.Distributed.Process.Extras.Time
-import Control.Distributed.Process.Async
-import Data.Sequence (Seq, (<|), (|>), ViewL (..))
-import qualified Data.Sequence as Seq
-import Data.Proxy
+import           Control.Concurrent                                 (threadDelay)
+import           Control.Distributed.Process                        hiding
+                                                                     (call)
+import           Control.Distributed.Process.Async
+import           Control.Distributed.Process.Backend.SimpleLocalnet (Backend (..),
+                                                                     findSlaves,
+                                                                     startSlave)
+import           Control.Distributed.Process.Extras                 hiding
+                                                                     (call,
+                                                                     send)
+import           Control.Distributed.Process.Extras.Time
+import           Control.Distributed.Process.ManagedProcess
+import           Control.Distributed.Process.Serializable
+import           Control.Monad                                      (forever)
+import           Data.Binary                                        (Binary)
+import           Data.Map                                           (Map)
+import qualified Data.Map                                           as Map
+import           Data.Maybe                                         (isNothing)
+import           Data.Proxy
+import           Data.Sequence                                      (Seq,
+                                                                     ViewL (..),
+                                                                     (<|), (|>))
+import qualified Data.Sequence                                      as Seq
+import           Data.Set                                           (Set)
+import qualified Data.Set                                           as Set
+import           Data.Typeable                                      (Typeable)
+import           GHC.Generics                                       (Generic)
+import           GitShell                                           (SHA)
+import           Repo                                               (Repo)
 
 
 newtype TaskQueue a

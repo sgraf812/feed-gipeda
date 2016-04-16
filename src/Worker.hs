@@ -9,26 +9,31 @@ module Worker
     items.
 -}
 
-import           Control.Monad    (unless, when)
-import           Data.Foldable    (find)
-import           Data.List        (stripPrefix)
-import           Data.Maybe       (fromMaybe)
-import qualified Data.Set         as Set
-import qualified Data.Yaml        as Yaml
+import           Control.Monad        (unless, when)
+import           Data.Aeson           ((.=))
+import qualified Data.Aeson           as Json
+import qualified Data.ByteString.Lazy as LBS
+import           Data.Foldable        (find)
+import           Data.List            (stripPrefix, elemIndex)
+import           Data.Maybe           (fromMaybe)
+import           Data.Set             (Set)
+import qualified Data.Set             as Set
+import qualified Data.Text            as Text
+import qualified Data.Yaml            as Yaml
 import qualified Gipeda
-import           GitShell         (SHA)
-import           Network.URI      (URI, uriAuthority, uriPath, uriRegName,
-                                   uriToString)
-import           Repo             (Repo)
+import           GitShell             (SHA)
+import           Network.URI          (URI, uriAuthority, uriPath, uriRegName,
+                                       uriToString)
+import           Repo                 (Repo)
 import qualified Repo
 import qualified RepoWatcher
-import           System.Directory (copyFile, createDirectoryIfMissing,
-                                   doesFileExist, removeFile)
-import           System.FilePath  (addTrailingPathSeparator, dropExtension,
-                                   dropFileName, takeBaseName, (<.>), (</>))
-import           System.IO        (IOMode (WriteMode), hClose, hPutStr,
-                                   openFile)
-import           System.Process   (cwd, proc, readCreateProcessWithExitCode)
+import           System.Directory     (copyFile, createDirectoryIfMissing,
+                                       doesFileExist, removeFile)
+import           System.FilePath      (addTrailingPathSeparator, dropExtension,
+                                       dropFileName, takeBaseName, (<.>), (</>))
+import           System.IO            (IOMode (WriteMode), hClose, hPutStr,
+                                       openFile)
+import           System.Process       (cwd, proc, readCreateProcessWithExitCode)
 
 
 executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
@@ -115,49 +120,66 @@ sshSubPathTestFailures =
         sshSubPath repo /= expected
 
 
+generateMapping :: FilePath -> Set Repo -> IO ()
+generateMapping file repos =
+  LBS.writeFile file (Json.encode (Json.object (foldMap (\repo -> [Text.pack (sshSubPath repo) .= Repo.uri repo]) repos)))
 
-rsyncSite :: Repo -> Maybe String -> IO ()
-rsyncSite repo = maybe (return ()) $ \remoteDir -> do
+
+sshUriPath :: String -> FilePath
+sshUriPath sshUri =
+  case elemIndex ':' (reverse sshUri) of
+    Nothing -> sshUri -- Assume it's a local file path
+    Just n -> drop (length sshUri - n) sshUri
+
+
+rsyncSite :: Set Repo -> Repo -> Maybe String -> IO ()
+rsyncSite repos repo = maybe (return ()) $ \remoteDir -> do
   projectDir <- Repo.projectDir repo
   -- we need the trailing path separator, otherwise it will add a site
-  -- sub directory
+  -- sub directory.
+  -- The rsync-path parameter is used for a little hack that ensures the
+  -- remote directory acutally exists on the remote machine.
+  -- Otherwise, we couldn't cope with nested sshSubPaths.
+  -- -a: archive mode (many different flags), -v verbose, -z compress
   executeIn Nothing "rsync"
-    [ "-a"
+    [ "-avz"
+    , "--rsync-path=mkdir -p " ++ (sshUriPath remoteDir </> sshSubPath repo) ++ " && rsync"
     , addTrailingPathSeparator (projectDir </> "site")
     , remoteDir </> sshSubPath repo
     ]
+
+  generateMapping (projectDir </> "site.json") repos
+  executeIn Nothing "rsync"
+    [ "-avz"
+    , projectDir </> "site.json"
+    , remoteDir </> "site.json"
+    ]
+
+  -- TODO: index.html
 
   return ()
 
 
 
-finalize :: FilePath -> Maybe String -> Repo -> SHA -> String -> IO ()
-finalize gipeda rsyncPath repo commit result = do
+finalize :: FilePath -> Maybe String -> Set Repo -> Repo -> SHA -> String -> IO ()
+finalize gipeda rsyncPath repos repo commit result = do
   results <- Repo.resultsDir repo
   writeFile (results </> commit <.> "csv") result
   -- Regenerate and deploy gipeda assets as necessary
   (unfinished, _) <- RepoWatcher.commitDiff repo
-  when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repo)
+  when (Set.null unfinished) (regenerateAndDeploy gipeda rsyncPath repos repo)
 
 
 benchmark :: FilePath -> Repo -> SHA -> IO String
 benchmark cloben repo commit = do
   -- Handle a fresh commit by benchmarking
   clone <- Repo.cloneDir repo
-  results <- Repo.resultsDir repo
-  let
-    resultFile = results </> commit <.> "csv"
-
-  exists <- doesFileExist resultFile
-  createDirectoryIfMissing True results
-  when exists $
-    putStrLn "Benchmarking a commit for which there already is a file. This is a bug, but nothing critical."
   putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
-  executeIn Nothing cloben [clone, commit]
+  executeIn Nothing cloben [Repo.uri repo, commit]
 
 
-regenerateAndDeploy :: FilePath -> Maybe String -> Repo -> IO ()
-regenerateAndDeploy gipeda rsyncPath repo = do
+regenerateAndDeploy :: FilePath -> Maybe String -> Set Repo -> Repo -> IO ()
+regenerateAndDeploy gipeda rsyncPath repos repo = do
   project <- Repo.projectDir repo
   putStrLn ("Regenerating " ++ project)
   createDirectoryIfMissing True (project </> "site" </> "js")
@@ -166,5 +188,5 @@ regenerateAndDeploy gipeda rsyncPath repo = do
   copyIfNotExists gipeda project ("site" </> "index.html")
   copyIfNotExists gipeda project ("site" </> "js" </> "gipeda.js")
   executeIn (Just project) gipeda ["-j"]
-  rsyncSite repo rsyncPath
+  rsyncSite repos repo rsyncPath
   return ()
