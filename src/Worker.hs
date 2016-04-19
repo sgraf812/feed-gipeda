@@ -9,12 +9,14 @@ module Worker
     items.
 -}
 
+import qualified Assets
 import           Control.Monad        (unless, when)
 import           Data.Aeson           ((.=))
 import qualified Data.Aeson           as Json
+import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Foldable        (find)
-import           Data.List            (stripPrefix, elemIndex)
+import           Data.List            (elemIndex, stripPrefix)
 import           Data.Maybe           (fromMaybe)
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
@@ -148,17 +150,22 @@ rsyncSite repos repo = maybe (return ()) $ \remoteDir -> do
     , remoteDir </> sshSubPath repo
     ]
 
-  generateMapping (projectDir </> "site.json") repos
+  generateMapping "sites.json" repos
   executeIn Nothing "rsync"
     [ "-avz"
-    , projectDir </> "site.json"
-    , remoteDir </> "site.json"
+    , "sites.json"
+    , remoteDir </> "sites.json"
     ]
 
-  -- TODO: index.html
+  BS.writeFile "default_index.html" Assets.defaultIndexHtml
+  executeIn Nothing "rsync"
+    [ "-avz"
+    , "--ignore-existing" -- so that users can provide their own index.html
+    , "default_index.html"
+    , remoteDir </> "index.html"
+    ]
 
   return ()
-
 
 
 finalize :: FilePath -> Maybe String -> Set Repo -> Repo -> SHA -> String -> IO ()
