@@ -4,6 +4,7 @@ module GitShell
   , fetch
   , allCommits
   , firstCommit
+  , remoteRepo
   , SHA
   ) where
 
@@ -32,6 +33,13 @@ isRepositoryRoot path = do
 cloneBare :: Repo -> FilePath -> IO ()
 cloneBare repo path =
   callProcess "git" ["clone", "--bare", "--single-branch", "--quiet", Repo.uri repo, path]
+
+
+remoteRepo :: FilePath -> IO Repo
+remoteRepo path = do
+  (_, stdout, _)  <- readProcessWithExitCode
+    "git" ["-C", path, "ls-remote", "--get-url", "origin"] ""
+  return (Repo.unsafeFromString stdout)
 
 
 fetch :: FilePath -> IO ()

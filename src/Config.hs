@@ -1,29 +1,30 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Config
-  ( Config (..)
-  , withWatchFile
-  , decodeFileAndNotify
+  ( Config
+  , repos
+  , decodeFile
   , checkFile
   ) where
 
 
-import           Control.Monad   (void)
-import           Data.Set        (Set)
-import qualified Data.Set        as Set
-import           Data.Yaml       (FromJSON (..), Value (Object), (.:))
-import qualified Data.Yaml       as Yaml
-import           Network.URI     (parseURI)
-import           Repo            (Repo (..))
+import           Control.Arrow          (left)
+import           Control.Monad          (forever)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Data.Set               (Set)
+import qualified Data.Set               as Set
+import           Data.Yaml              (FromJSON (..), Value (Object), (.:))
+import qualified Data.Yaml              as Yaml
+import           Network.URI            (parseURI)
+import           Repo                   (Repo (..))
 import qualified Repo
-import           System.FilePath (dropFileName, equalFilePath)
-import qualified System.FSNotify as FS
+import           System.FilePath        (dropFileName, equalFilePath)
 
 
 data Config
   = Config
   { repos :: Set Repo
-  }
+  } deriving (Eq, Show)
 
 
 instance FromJSON Repo where
@@ -40,36 +41,17 @@ instance FromJSON Config where
     fail "Object"
 
 
+decodeFile :: FilePath -> IO (Either String Config)
+decodeFile file = fmap (left errorToString) (Yaml.decodeFileEither file)
+  where
+    errorToString :: Yaml.ParseException -> String
+    errorToString e =
+      unlines
+        [ "Could not decode the config file:"
+        , Yaml.prettyPrintParseException e
+        ]
+
+
 checkFile :: FilePath -> IO (Maybe String)
 checkFile file =
-  fmap
-    (either
-      (Just . Yaml.prettyPrintParseException)
-      (\Config{} -> Nothing))
-    (Yaml.decodeFileEither file)
-
-
-decodeFileAndNotify :: (Config -> IO a) -> FilePath -> IO ()
-decodeFileAndNotify onNewConfig file =
-  Yaml.decodeFileEither file >>= either
-    (\e -> do
-      putStrLn "Could not decode the config file:"
-      putStrLn (Yaml.prettyPrintParseException e))
-    (void . onNewConfig)
-
-
-withWatchFile :: FilePath -> (Config -> IO a) -> IO b -> IO b
-withWatchFile file onNewConfig inner = do
-  let
-    filterEvents evt =
-      case evt of
-        FS.Removed _ _ -> False
-        _ -> equalFilePath file (FS.eventPath evt)
-
-  FS.withManager $ \mgr -> do
-    FS.watchDir
-      mgr
-      (dropFileName file)
-      filterEvents
-      (decodeFileAndNotify onNewConfig . FS.eventPath)
-    inner
+  fmap (either Just (const Nothing)) (decodeFile file)

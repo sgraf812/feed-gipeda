@@ -162,12 +162,12 @@ watchConfiguredRepos configFile dt onNewCommit = do
     waitAction =
       case dt of
         Just dt' ->
-          Config.withWatchFile
+          ConfigWatcher.withWatchFile
             configFile
             cloneAddedRepos
             (periodicallyRefreshRepos dt' onNewCommits backlog)
         Nothing ->
-          readMVar allFinishedEvent -- block until all commits are handled
+          liftIO (readMVar allFinishedEvent) -- block until all commits are handled
 
     exitCheck :: IO ()
     exitCheck = do
