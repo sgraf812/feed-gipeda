@@ -36,8 +36,6 @@ import           Data.Set                                           (Set)
 import qualified Data.Set                                           as Set
 import           Data.Typeable                                      (Typeable)
 import           GHC.Generics                                       (Generic)
-import           GitShell                                           (SHA)
-import           Repo                                               (Repo)
 
 
 newtype TaskQueue a

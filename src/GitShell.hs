@@ -5,17 +5,19 @@ module GitShell
   , allCommits
   , firstCommit
   , remoteRepo
+  , sync
   , SHA
   ) where
 
-import           Data.Char      (isSpace)
-import           Data.Maybe     (listToMaybe)
-import           Data.Set       (Set)
-import qualified Data.Set       as Set
-import           Repo           (Repo)
+import           Data.Char        (isSpace)
+import           Data.Maybe       (listToMaybe)
+import           Data.Set         (Set)
+import qualified Data.Set         as Set
+import           Repo             (Repo)
 import qualified Repo
-import           System.Exit    (ExitCode (ExitSuccess))
-import           System.Process (callProcess, readProcessWithExitCode)
+import           System.Directory (createDirectoryIfMissing)
+import           System.Exit      (ExitCode (ExitSuccess))
+import           System.Process   (callProcess, readProcessWithExitCode)
 
 
 type SHA
@@ -45,6 +47,17 @@ remoteRepo path = do
 fetch :: FilePath -> IO ()
 fetch path =
   callProcess "git" ["-C", path, "fetch", "--quiet"]
+
+
+sync :: Repo -> IO ()
+sync repo = do
+  path <- Repo.cloneDir repo
+  hasClone <- GitShell.isRepositoryRoot path
+  if hasClone
+    then GitShell.fetch path
+    else do
+      createDirectoryIfMissing True path
+      GitShell.cloneBare repo path
 
 
 allCommits :: FilePath -> IO (Set SHA)

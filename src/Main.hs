@@ -20,9 +20,9 @@ import           Data.Maybe                                         (isJust)
 import           Data.Set                                           (Set)
 import           Data.Time                                          (NominalDiffTime)
 import           GitShell                                           (SHA)
+import qualified Master
 import           Network.URI                                        (parseURI)
 import           Repo                                               (Repo)
-import qualified RepoWatcher
 import           System.Console.ArgParser                           (Descr (..),
                                                                      ParserSpec,
                                                                      andBy,
@@ -124,17 +124,27 @@ main = withParseResult cmdParser $
       Just (host, port) -> do
         backend <- SLN.initializeBackend host port remoteTable
         node <- SLN.newLocalNode backend
+        tasks <- newChan
         runProcess node $ do
           taskQueue <- TaskQueue.start backend
 
-          let
-            onNewCommit :: Set Repo -> Repo -> SHA -> Process ()
-            onNewCommit repos repo commit = do
+          spawnLocal $ forever $ do
+            (finalize, repo, commit) <- liftIO (readChan tasks)
+            spawnLocal $ do
               result <- TaskQueue.execute taskQueue
                 THGenerated.stringDict
                 (THGenerated.benchmarkClosure cloben repo commit)
-              liftIO (Worker.finalize gipeda rsyncPath repos repo commit result)
+              liftIO (finalize result)
 
-          if oneShot
-            then RepoWatcher.watchConfiguredRepos configFile Nothing onNewCommit
-            else RepoWatcher.watchConfiguredRepos configFile (Just (fromIntegral dt)) onNewCommit
+          let
+            onNewCommit :: (String -> IO ()) -> Repo -> SHA -> IO ()
+            onNewCommit finalize repo commit =
+              writeChan tasks (finalize, repo, commit)
+
+            paths :: Master.Paths
+            paths =
+              Master.Paths configFile rsyncPath gipeda
+
+          liftIO $ if oneShot
+            then Master.checkForNewCommits paths Master.OneShot onNewCommit
+            else Master.checkForNewCommits paths (Master.PeriodicRefresh (fromIntegral dt)) onNewCommit

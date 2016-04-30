@@ -1,3 +1,0 @@
-module Processes.BacklogClearer
-  ( watchBacklogsAnd
-  )

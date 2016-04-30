@@ -2,6 +2,7 @@
 
 module Config
   ( Config
+  , empty
   , repos
   , decodeFile
   , checkFile
@@ -25,6 +26,11 @@ data Config
   = Config
   { repos :: Set Repo
   } deriving (Eq, Show)
+
+
+empty :: Config
+empty =
+  Config Set.empty
 
 
 instance FromJSON Repo where
