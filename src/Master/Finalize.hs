@@ -4,6 +4,7 @@ module Master.Finalize
 
 
 import qualified Assets
+import           Control.Logging      as Logging
 import           Control.Monad        (unless, when)
 import           Data.Aeson           ((.=))
 import qualified Data.Aeson           as Json
@@ -33,13 +34,19 @@ executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
 executeIn cwd executable args = do
   (exitCode, stdout, stderr) <-
     readCreateProcessWithExitCode (proc executable args) { cwd = cwd } ""
+  Logging.debug (Text.pack (takeBaseName executable ++ ": " ++ show exitCode))
+  -- That's too much even for debug
+  --Logging.debug (Text.pack "stdout:")
+  --Logging.debug (Text.pack stdout)
+  --Logging.debug (Text.pack "stderr:")
+  --Logging.debug (Text.pack stderr)
   return stdout
 
 
 regenerateAndDeploy :: FilePath -> Maybe String -> Set Repo -> Repo -> IO ()
 regenerateAndDeploy gipeda rsyncPath repos repo = do
   project <- Repo.projectDir repo
-  putStrLn ("Regenerating " ++ project)
+  Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
   createDirectoryIfMissing True (project </> "site" </> "js")
   installJsLibs gipeda project
   saveSettingsIfNotExists project repo
@@ -129,7 +136,9 @@ sshSubPathTestFailures =
 
 generateMapping :: FilePath -> Set Repo -> IO ()
 generateMapping file repos =
-  LBS.writeFile file (Json.encode (Json.object (foldMap (\repo -> [Text.pack (sshSubPath repo) .= Repo.uri repo]) repos)))
+  LBS.writeFile file
+    (Json.encode (Json.object (foldMap (\repo ->
+      [Text.pack (sshSubPath repo) .= Repo.uri repo]) repos)))
 
 
 sshUriPath :: String -> FilePath
@@ -148,6 +157,7 @@ rsyncSite repos repo = maybe (return ()) $ \remoteDir -> do
   -- remote directory acutally exists on the remote machine.
   -- Otherwise, we couldn't cope with nested sshSubPaths.
   -- -a: archive mode (many different flags), -v verbose, -z compress
+  Logging.log (Text.pack "rsyncing")
   executeIn Nothing "rsync"
     [ "-avz"
     , "--rsync-path=mkdir -p " ++ (sshUriPath remoteDir </> sshSubPath repo) ++ " && rsync"

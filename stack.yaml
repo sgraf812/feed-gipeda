@@ -9,4 +9,5 @@ extra-deps:
 - distributed-process-extras-0.2.1.2
 - distributed-process-simplelocalnet-0.2.3.2
 - reactive-banana-1.1.0.0
+- logging-3.0.2
 resolver: lts-5.13

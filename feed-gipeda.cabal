@@ -15,7 +15,18 @@ cabal-version:       >=1.10
 executable feed-gipeda
   hs-source-dirs:      src
   main-is:             Main.hs
-  other-modules:       GitShell, Repo, Master, Worker, Gipeda, Config, THGenerated, TaskQueue, Assets, Master.Finalize, Master.File, Master.RepoDiff
+  other-modules:       GitShell
+                     , Repo
+                     , Master
+                     , Worker
+                     , Gipeda
+                     , Config
+                     , THGenerated
+                     , TaskQueue
+                     , Assets
+                     , Master.Finalize
+                     , Master.File
+                     , Master.RepoDiff
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , fsnotify >= 0.2.1 && < 0.3.0
@@ -41,3 +52,4 @@ executable feed-gipeda
                      , distributed-process-simplelocalnet >= 0.2.0
                      , file-embed
                      , reactive-banana >= 1.0.0.0
+                     , logging >= 3.0.0

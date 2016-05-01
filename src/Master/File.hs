@@ -66,7 +66,7 @@ isBacklog :: FilePath -> FilePath -> Bool
 isBacklog cwd path =
   and
     [ map toLower (takeBaseName path) == "backlog"
-    , map toLower (takeExtension path) == "txt"
+    , map toLower (takeExtension path) == ".txt"
     , matchProjectRelativeDirectory [] cwd path
     ]
 
@@ -79,7 +79,7 @@ writeBenchmarkCSV repo commit result = do
 
 isBenchmarkCSV :: FilePath -> FilePath -> Bool
 isBenchmarkCSV cwd path =
-  map toLower (takeExtension path) == "csv"
+  map toLower (takeExtension path) == ".csv"
    && matchProjectRelativeDirectory ["site", "out", "results"] cwd path
 
 

@@ -41,7 +41,7 @@ remoteRepo :: FilePath -> IO Repo
 remoteRepo path = do
   (_, stdout, _)  <- readProcessWithExitCode
     "git" ["-C", path, "ls-remote", "--get-url", "origin"] ""
-  return (Repo.unsafeFromString stdout)
+  return (Repo.unsafeFromString (init stdout)) -- strip the \n with init
 
 
 fetch :: FilePath -> IO ()

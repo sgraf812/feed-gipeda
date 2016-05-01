@@ -7,10 +7,12 @@ module Worker
     items.
 -}
 
-import           GitShell       (SHA)
-import           Repo           (Repo)
+import           Control.Logging as Logging
+import qualified Data.Text       as Text
+import           GitShell        (SHA)
+import           Repo            (Repo)
 import qualified Repo
-import           System.Process (cwd, proc, readCreateProcessWithExitCode)
+import           System.Process  (cwd, proc, readCreateProcessWithExitCode)
 
 
 executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
@@ -24,5 +26,5 @@ benchmark :: FilePath -> Repo -> SHA -> IO String
 benchmark cloben repo commit = do
   -- Handle a fresh commit by benchmarking
   clone <- Repo.cloneDir repo
-  putStrLn ("New commit " ++ Repo.uri repo ++ "@" ++ commit)
+  Logging.log (Text.pack ("New commit " ++ Repo.uri repo ++ "@" ++ commit))
   executeIn Nothing cloben [Repo.uri repo, commit]

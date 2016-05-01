@@ -17,15 +17,18 @@ import qualified Config
 import           Control.Concurrent         (forkIO, threadDelay)
 import           Control.Concurrent.MVar    (MVar, newEmptyMVar, putMVar,
                                              readMVar)
-import           Control.Monad              (forM_, forever)
+import           Control.Logging            as Logging
+import           Control.Monad              (forM_, forever, when)
 import           Control.Monad.IO.Class     (liftIO)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (fromMaybe, listToMaybe)
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
+import qualified Data.Text                  as Text
 import           Data.Time                  (NominalDiffTime)
 import qualified Data.Time                  as Time
+import           Debug.Trace                (traceShowId)
 import           GitShell                   (SHA)
 import qualified GitShell
 import qualified Master.File                as File
@@ -47,7 +50,7 @@ type NewCommitAction
 
 
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
-notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) =
+notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
   forM_ backlog $ \commit ->
     onNewCommit (File.writeBenchmarkCSV repo commit) repo commit
 
@@ -64,7 +67,7 @@ readConfigFileRepos evt =
     FS.Removed _ _ -> return (Just Set.empty)
     _ ->
       Config.decodeFile (FS.eventPath evt) >>= either
-        (\err -> putStrLn err >> return Nothing)
+        (\err -> Logging.warn (Text.pack err) >> return Nothing)
         (return . Just . Config.repos)
 
 
@@ -76,23 +79,33 @@ accumDiff repos =
   fst <$> Banana.mapAccum Set.empty ((\new old -> (RepoDiff.compute old new, new)) <$> repos)
 
 
-dedupCommits
-  :: Banana.MonadMoment moment
-  => Banana.Event (Repo, Set SHA)
-  -> moment (Banana.Event (Repo, Set SHA))
-dedupCommits commits =
-  fst <$> Banana.mapAccum Map.empty (filterDuplicates <$> commits)
+dedupCommitsAndNotifyWhenEmpty
+  :: IO ()
+  -> Banana.Event (Repo, Set SHA)
+  -> Banana.MomentIO (Banana.Event (Repo, Set SHA))
+dedupCommitsAndNotifyWhenEmpty notify commits = do
+  (events, maps) <- Banana.mapAccum Map.empty (filterDuplicates <$> commits)
+  Banana.mapEventIO id events
     where
       filterDuplicates
         :: (Repo, Set SHA)
         -> Map Repo (Set SHA)
-        -> ((Repo, Set SHA), Map Repo (Set SHA))
+        -> (IO (Repo, Set SHA), Map Repo (Set SHA))
       filterDuplicates (repo, commits) inProgress =
         let
           nonDuplicates =
             Set.difference commits (fromMaybe Set.empty (Map.lookup repo inProgress))
+
+          newMap =
+            if Set.null commits
+              then Map.delete repo inProgress
+              else Map.insert repo commits inProgress
+
+          eventAction = do
+            when (Map.null newMap) notify
+            return (repo, nonDuplicates)
         in
-          ((repo, nonDuplicates), Map.insert repo commits inProgress)
+          (eventAction, newMap)
 
 
 periodically :: NominalDiffTime -> Banana.MomentIO (Banana.Event ())
@@ -165,16 +178,18 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
     networkDescription :: Banana.MomentIO ()
     networkDescription = do
       -- Source: Initial tick to read in the file
-      config <- (FS.Added (configFile paths) undefined <$) <$> singleShot start
+      initialConfig <- (FS.Added (configFile paths) undefined <$) <$> singleShot start
 
       -- Source: Events resulting from watching the config file
       configFileChanges <-
         case mode of
-          OneShot -> return config
-          PeriodicRefresh _ -> Banana.unionWith const config <$> watchFile (configFile paths)
+          OneShot -> return initialConfig
+          PeriodicRefresh _ -> Banana.unionWith const initialConfig <$> watchFile (configFile paths)
+
       activeRepos <- Banana.filterJust <$> Banana.mapEventIO readConfigFileRepos configFileChanges
       activeReposB <- Banana.stepper Set.empty activeRepos
       diffsWithoutRefresh <- accumDiff activeRepos
+
       -- Source: When in PeriodicRefresh mode, occasionally mark all repos dirty
       diffs <-
         case mode of
@@ -204,7 +219,13 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
 
       -- Sink: Backlog changes kick off workers, resp. the new commit action
       backlogCommits <- Banana.mapEventIO (\repo -> (,) repo <$> File.readBacklog repo) backlogRepos
-      dedupedCommits <- dedupCommits backlogCommits
+      Banana.reactimate $
+        (\(repo, commits) ->
+          Logging.log (Text.pack ("Backlog for " ++ Repo.uri repo
+            ++ " contained " ++ show (Set.size commits) ++ " commit")))
+        <$> backlogCommits
+      let doExit = when (mode == OneShot) (putMVar exit ())
+      dedupedCommits <- dedupCommitsAndNotifyWhenEmpty doExit backlogCommits
       Banana.reactimate (notifyOnNewCommitsInBacklog onNewCommit <$> dedupedCommits)
 
   network <- Banana.compile networkDescription

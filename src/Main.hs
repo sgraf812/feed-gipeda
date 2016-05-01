@@ -13,6 +13,7 @@ import           Control.Distributed.Process                        (Process,
 import qualified Control.Distributed.Process.Backend.SimpleLocalnet as SLN
 import           Control.Distributed.Process.Node                   (initRemoteTable,
                                                                      runProcess)
+import           Control.Logging                                    as Logging
 import           Control.Monad                                      (forever,
                                                                      void, when)
 import           Data.List                                          (elemIndex)
@@ -50,6 +51,7 @@ data CmdArgs
   , rsyncPath       :: Maybe String
   , master          :: Maybe String
   , slave           :: Maybe String
+  , verbose         :: Bool
   }
 
 
@@ -78,6 +80,7 @@ cmdParser = CmdArgs
   ++ " Identified via the given TCP endpoint (ipadress:portnumber)."
   `andBy` maybeFlag "slave" `Descr` "Start in slave mode, requesting work items from a master node."
   ++ " Identified via the given TCP endpoint (ipadress:portnumber)."
+  `andBy` boolFlag "verbose" `Descr` "Show log messages intended for debugging"
 
 
 parseEndpoint :: String -> IO (String, String)
@@ -93,12 +96,17 @@ remoteTable =
 
 
 main :: IO ()
-main = withParseResult cmdParser $
-  \(CmdArgs cloben gipeda configFile' oneShot dt check rsyncPath master slave) -> do
+main = Logging.withStderrLogging $ withParseResult cmdParser $
+  \(CmdArgs cloben gipeda configFile' oneShot dt check rsyncPath master slave verbose) -> do
+    if verbose
+      then Logging.setLogLevel Logging.LevelDebug
+      else Logging.setLogLevel Logging.LevelWarn
+
     configFile <- maybe
       (getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml"))
       return
       configFile'
+
     -- Handle the --check flag. Just perform a syntax check on the given configFile
     when check $ Config.checkFile configFile >>= maybe exitSuccess fail
 
