@@ -29,6 +29,7 @@ writeBacklog :: Repo -> IO ()
 writeBacklog repo = do
   projectDir <- Repo.projectDir repo
   path <- Repo.cloneDir repo
+  backlog <- Repo.backlogFile repo
   hasClone <- GitShell.isRepositoryRoot path
   unfinished <- if not hasClone -- This should never be true, actually
     then return Set.empty
@@ -38,13 +39,12 @@ writeBacklog repo = do
       createDirectoryIfMissing True resultsDir
       alreadyHandledCommits <- Set.fromList . map takeBaseName <$> getDirectoryContents resultsDir
       return (Set.difference allCommits alreadyHandledCommits)
-  writeFile (projectDir </> "backlog.txt") (unlines (Set.toList unfinished))
+  writeFile backlog (unlines (Set.toList unfinished))
 
 
 readBacklog :: Repo -> IO (Set SHA)
 readBacklog repo = do
-  projectDir <- Repo.projectDir repo
-  let backlog = projectDir </> "backlog.txt"
+  backlog <- Repo.backlogFile repo
   exists <- doesFileExist backlog
   if exists
     then Set.fromList . lines <$> readFile backlog

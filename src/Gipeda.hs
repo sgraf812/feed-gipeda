@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-{-| This module is just for parsing and generating gipeda settings.yaml files.
+{-| This module is just for parsing and generating gipeda.yaml files.
     It should probably replaced by a reference to gipeda, but it works for now.
     The real raison d'être is @settingsForRepo@, which is rather an euphemism,
     since in reality it can only generate settings for @cloben@ output.

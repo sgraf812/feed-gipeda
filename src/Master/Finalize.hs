@@ -53,7 +53,7 @@ regenerateAndDeploy gipeda rsyncPath repos repo = do
   Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
   createDirectoryIfMissing True (project </> "site" </> "js")
   installJsLibs gipeda project
-  saveSettingsIfNotExists project repo
+  saveSettingsIfNotExists repo
   copyIfNotExists gipeda project ("site" </> "index.html")
   copyIfNotExists gipeda project ("site" </> "js" </> "gipeda.js")
   executeIn (Just project) gipeda ["-j"]
@@ -83,11 +83,9 @@ copyIfNotExists gipeda dst subPath = do
   unless exists (copyFile source target)
 
 
-saveSettingsIfNotExists :: FilePath -> Repo -> IO ()
-saveSettingsIfNotExists project repo = do
-  let
-    settingsFile = project </> "settings.yaml"
-
+saveSettingsIfNotExists :: Repo -> IO ()
+saveSettingsIfNotExists repo = do
+  settingsFile <- Repo.settingsFile repo
   settings <- Gipeda.settingsForRepo repo
   exists <- doesFileExist settingsFile
   unless exists (Yaml.encodeFile settingsFile settings)

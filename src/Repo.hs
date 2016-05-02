@@ -15,6 +15,8 @@ module Repo
   , projectDir
   , cloneDir
   , resultsDir
+  , settingsFile
+  , backlogFile
   ) where
 
 
@@ -78,3 +80,13 @@ cloneDir repo =
 resultsDir :: Repo -> IO FilePath
 resultsDir repo =
   fmap (</> "site" </> "out" </> "results") (projectDir repo)
+
+
+settingsFile :: Repo -> IO FilePath
+settingsFile repo =
+  fmap (</> "gipeda.yaml") (projectDir repo)
+
+
+backlogFile :: Repo -> IO FilePath
+backlogFile repo =
+  fmap (</> "backlog.txt") (projectDir repo)
