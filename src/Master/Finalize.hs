@@ -25,6 +25,7 @@ import           Repo                 (Repo)
 import qualified Repo
 import           System.Directory     (copyFile, createDirectoryIfMissing,
                                        doesFileExist)
+import           System.Exit          (ExitCode (..))
 import           System.FilePath      (addTrailingPathSeparator, dropExtension,
                                        dropFileName, takeBaseName, (</>))
 import           System.Process       (cwd, proc, readCreateProcessWithExitCode)
@@ -35,6 +36,9 @@ executeIn cwd executable args = do
   (exitCode, stdout, stderr) <-
     readCreateProcessWithExitCode (proc executable args) { cwd = cwd } ""
   Logging.debug (Text.pack (takeBaseName executable ++ ": " ++ show exitCode))
+  case exitCode of
+    ExitFailure _ -> Logging.debug (Text.pack stderr)
+    _ -> return ()
   -- That's too much even for debug
   --Logging.debug (Text.pack "stdout:")
   --Logging.debug (Text.pack stdout)

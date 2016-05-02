@@ -103,6 +103,9 @@ dedupCommitsAndNotifyWhenEmpty notify commits = do
 
           eventAction = do
             when (Map.null newMap) notify
+            Logging.log (Text.pack ("Backlog for " ++ Repo.uri repo
+              ++ " contained " ++ show (Set.size commits) ++ " commits, "
+              ++ show (Set.size nonDuplicates) ++ " unhandled."))
             return (repo, nonDuplicates)
         in
           (eventAction, newMap)
@@ -219,11 +222,6 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
 
       -- Sink: Backlog changes kick off workers, resp. the new commit action
       backlogCommits <- Banana.mapEventIO (\repo -> (,) repo <$> File.readBacklog repo) backlogRepos
-      Banana.reactimate $
-        (\(repo, commits) ->
-          Logging.log (Text.pack ("Backlog for " ++ Repo.uri repo
-            ++ " contained " ++ show (Set.size commits) ++ " commit")))
-        <$> backlogCommits
       let doExit = when (mode == OneShot) (putMVar exit ())
       dedupedCommits <- dedupCommitsAndNotifyWhenEmpty doExit backlogCommits
       Banana.reactimate (notifyOnNewCommitsInBacklog onNewCommit <$> dedupedCommits)
