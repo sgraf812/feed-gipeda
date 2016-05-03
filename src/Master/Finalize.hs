@@ -37,7 +37,7 @@ executeIn cwd executable args = do
     readCreateProcessWithExitCode (proc executable args) { cwd = cwd } ""
   Logging.debug (Text.pack (takeBaseName executable ++ ": " ++ show exitCode))
   case exitCode of
-    ExitFailure _ -> Logging.debug (Text.pack stderr)
+    ExitFailure _ -> Logging.debug (Text.pack stderr) >> Logging.debug (Text.pack stdout)
     _ -> return ()
   -- That's too much even for debug
   --Logging.debug (Text.pack "stdout:")
@@ -52,10 +52,7 @@ regenerateAndDeploy gipeda rsyncPath repos repo = do
   project <- Repo.projectDir repo
   Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
   createDirectoryIfMissing True (project </> "site" </> "js")
-  installJsLibs gipeda project
   saveSettingsIfNotExists repo
-  copyIfNotExists gipeda project ("site" </> "index.html")
-  copyIfNotExists gipeda project ("site" </> "js" </> "gipeda.js")
   executeIn (Just project) gipeda ["-j"]
   rsyncSite repos repo rsyncPath
   return ()
