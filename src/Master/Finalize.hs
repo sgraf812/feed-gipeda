@@ -58,28 +58,6 @@ regenerateAndDeploy gipeda rsyncPath repos repo = do
   return ()
 
 
-installJsLibs :: FilePath -> FilePath -> IO ()
-installJsLibs gipeda project = do
-  let
-    installScript =
-      dropFileName gipeda </> "install-jslibs.sh"
-
-  executeIn (Just project) "sh" [installScript]
-  return ()
-
-
-copyIfNotExists :: FilePath -> FilePath -> FilePath -> IO ()
-copyIfNotExists gipeda dst subPath = do
-  let
-    source =
-      dropFileName gipeda </> subPath
-    target =
-      dst </> subPath
-
-  exists <- doesFileExist target
-  unless exists (copyFile source target)
-
-
 saveSettingsIfNotExists :: Repo -> IO ()
 saveSettingsIfNotExists repo = do
   settingsFile <- Repo.settingsFile repo
