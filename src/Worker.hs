@@ -45,23 +45,25 @@ reportError repo commit cmd code stderr =
         ]
 
 
-cloneRecursiveAndCheckout :: Repo -> SHA -> FilePath -> IO ()
+cloneRecursiveAndCheckout :: Repo -> SHA -> FilePath -> IO String
 cloneRecursiveAndCheckout repo commit cloneDir = do
   procReportingError repo commit Nothing "git" ["clone", "--quiet", Repo.uri repo, cloneDir]
   procReportingError repo commit (Just cloneDir) "git" ["reset", "--hard", commit]
   shellReportingError repo commit (Just cloneDir) "git submodule update --init --recursive --quiet"
-  return ()
+  return "cloben"
 
 
 {-| Clones the given @repo@ at a specific @commit@ into a temporary directory.
     Then calls the benchmark script within that directory and returns its output.
+    The benchmark script is extracted from the gipeda.yaml file at the top-level
+    of the repository's HEAD.
 
     Will be executed on slave nodes.
 -}
-benchmark :: FilePath -> Repo -> SHA -> IO String
-benchmark benchmarkScript repo commit = do
+benchmark :: Repo -> SHA -> IO String
+benchmark repo commit = do
   clone <- Repo.cloneDir repo
   Logging.log (Text.pack ("Benchmarking " ++ Repo.uri repo ++ "@" ++ commit))
   withSystemTempDirectory "feed-gipeda" $ \cloneDir -> do
-    cloneRecursiveAndCheckout repo commit cloneDir
+    benchmarkScript <- cloneRecursiveAndCheckout repo commit cloneDir
     shellReportingError repo commit (Just cloneDir) benchmarkScript

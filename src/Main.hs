@@ -42,16 +42,15 @@ import qualified Worker
 
 data CmdArgs
   = CmdArgs
-  { benchmarkScript :: FilePath
-  , gipeda          :: FilePath
-  , configFile      :: Maybe FilePath
-  , oneShot         :: Bool
-  , fetchInterval   :: Int
-  , check           :: Bool
-  , rsyncPath       :: Maybe String
-  , master          :: Maybe String
-  , slave           :: Maybe String
-  , verbose         :: Bool
+  { gipeda        :: FilePath
+  , configFile    :: Maybe FilePath
+  , oneShot       :: Bool
+  , fetchInterval :: Int
+  , check         :: Bool
+  , rsyncPath     :: Maybe String
+  , master        :: Maybe String
+  , slave         :: Maybe String
+  , verbose       :: Bool
   }
 
 
@@ -61,9 +60,7 @@ maybeFlag key =
 
 cmdParser :: ParserSpec CmdArgs
 cmdParser = CmdArgs
-  `parsedBy` optFlag "cloben" "benchmark" `Descr` "Benchmark script which will be"
-  ++ " supplied the repository to name and specific commit to benchmark"
-  `andBy` optFlag "gipeda" "gipeda" `Descr` "Path to the gipeda executable"
+  `parsedBy` optFlag "gipeda" "gipeda" `Descr` "Path to the gipeda executable"
   ++ " the directory of which includes assets such as site/ scaffolding and install-jslibs.sh"
   `andBy` maybeFlag "config" `Descr` "Path to the YAML file containing"
   ++ " a list of watched repositories. Will be watched for changes."
@@ -97,7 +94,7 @@ remoteTable =
 
 main :: IO ()
 main = Logging.withStderrLogging $ withParseResult cmdParser $
-  \(CmdArgs cloben gipeda configFile' oneShot dt check rsyncPath master slave verbose) -> do
+  \(CmdArgs gipeda configFile' oneShot dt check rsyncPath master slave verbose) -> do
     if verbose
       then Logging.setLogLevel Logging.LevelDebug
       else Logging.setLogLevel Logging.LevelWarn
@@ -141,7 +138,7 @@ main = Logging.withStderrLogging $ withParseResult cmdParser $
             spawnLocal $ do
               result <- TaskQueue.execute taskQueue
                 THGenerated.stringDict
-                (THGenerated.benchmarkClosure cloben repo commit)
+                (THGenerated.benchmarkClosure repo commit)
               liftIO (finalize result)
 
           let

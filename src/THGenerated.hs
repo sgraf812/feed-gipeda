@@ -16,15 +16,15 @@ import           Repo                                (Repo)
 import qualified Worker
 
 
-benchmarkProcess :: (FilePath, Repo, SHA) -> Process String
-benchmarkProcess (cloben, repo, sha) =
-  liftIO (Worker.benchmark cloben repo sha)
+benchmarkProcess :: (Repo, SHA) -> Process String
+benchmarkProcess (repo, sha) =
+  liftIO (Worker.benchmark repo sha)
 remotable ['benchmarkProcess]
 
 
-benchmarkClosure :: FilePath -> Repo -> SHA -> Closure (Process String)
-benchmarkClosure cloben repo commit =
-  $(mkClosure 'benchmarkProcess) (cloben, repo, commit)
+benchmarkClosure :: Repo -> SHA -> Closure (Process String)
+benchmarkClosure repo commit =
+  $(mkClosure 'benchmarkProcess) (repo, commit)
 
 
 stringDict :: Static (SerializableDict String)
