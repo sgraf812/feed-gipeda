@@ -46,13 +46,13 @@ import qualified System.FSNotify            as FS
 
 
 type NewCommitAction
-  = (String -> IO ()) -> Repo -> SHA -> IO ()
+  = (String -> IO ()) -> String -> Repo -> SHA -> IO ()
 
 
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
 notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
   forM_ backlog $ \commit ->
-    onNewCommit (File.writeBenchmarkCSV repo commit) repo commit
+    onNewCommit (File.writeBenchmarkCSV repo commit) "cloben" repo commit
 
 
 finalizeRepos :: Paths -> Set Repo -> Set Repo -> IO ()

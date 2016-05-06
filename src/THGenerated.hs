@@ -16,15 +16,15 @@ import           Repo                                (Repo)
 import qualified Worker
 
 
-benchmarkProcess :: (Repo, SHA) -> Process String
-benchmarkProcess (repo, sha) =
-  liftIO (Worker.benchmark repo sha)
+benchmarkProcess :: (String, Repo, SHA) -> Process String
+benchmarkProcess (benchmarkScript, repo, sha) =
+  liftIO (Worker.benchmark benchmarkScript repo sha)
 remotable ['benchmarkProcess]
 
 
-benchmarkClosure :: Repo -> SHA -> Closure (Process String)
-benchmarkClosure repo commit =
-  $(mkClosure 'benchmarkProcess) (repo, commit)
+benchmarkClosure :: String -> Repo -> SHA -> Closure (Process String)
+benchmarkClosure benchmarkScript repo commit =
+  $(mkClosure 'benchmarkProcess) (benchmarkScript, repo, commit)
 
 
 stringDict :: Static (SerializableDict String)

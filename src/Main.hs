@@ -134,17 +134,17 @@ main = Logging.withStderrLogging $ withParseResult cmdParser $
           taskQueue <- TaskQueue.start backend
 
           spawnLocal $ forever $ do
-            (finalize, repo, commit) <- liftIO (readChan tasks)
+            (finalize, benchmarkScript, repo, commit) <- liftIO (readChan tasks)
             spawnLocal $ do
               result <- TaskQueue.execute taskQueue
                 THGenerated.stringDict
-                (THGenerated.benchmarkClosure repo commit)
+                (THGenerated.benchmarkClosure benchmarkScript repo commit)
               liftIO (finalize result)
 
           let
-            onNewCommit :: (String -> IO ()) -> Repo -> SHA -> IO ()
-            onNewCommit finalize repo commit =
-              writeChan tasks (finalize, repo, commit)
+            onNewCommit :: (String -> IO ()) -> String -> Repo -> SHA -> IO ()
+            onNewCommit finalize benchmarkScript repo commit =
+              writeChan tasks (finalize, benchmarkScript, repo, commit)
 
             paths :: Master.Paths
             paths =
