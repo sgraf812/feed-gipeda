@@ -27,14 +27,15 @@ import           Text.Printf         (printf)
 
 
 data GipedaSettings = GipedaSettings
-  { title           :: String
-  , diffLink        :: String
-  , revisionInfo    :: String
-  , limitRecent     :: Int
-  , start           :: SHA
-  , interestingTags :: String -- wildcard based, i.e. "*"
-  , benchmarkScript :: String
-  , benchmarks      :: [BenchmarkSettings] -- This should be determined by the benchmark script used
+  { title               :: String
+  , revisionInfo        :: String
+  , diffLink            :: String
+  , limitRecent         :: Int
+  , start               :: SHA
+  , interestingTags     :: String -- wildcard based, i.e. "*"
+  , interestingBranches :: String
+  , benchmarkScript     :: String
+  , benchmarks          :: [BenchmarkSettings] -- This should be determined by the benchmark script used
   } deriving (Show)
 
 
@@ -88,11 +89,12 @@ instance FromJSON BenchmarkSettings where
 instance ToJSON GipedaSettings where
   toJSON s = Yaml.object
     [ "title" .= title s
-    , "diffLink" .= diffLink s
     , "revisionInfo" .= revisionInfo s
+    , "diffLink" .= diffLink s
     , "limitRecent" .= limitRecent s
     , "start" .= start s
     , "interestingTags" .= interestingTags s
+    , "interestingBranches" .= interestingBranches s
     , "benchmarkScript" .= benchmarkScript s
     , "benchmarks" .= benchmarks s
     ]
@@ -124,11 +126,12 @@ settingsForRepo repo = do
     settings (Yaml.Object obj) =
       GipedaSettings
         <$> "title" ?? Repo.shortName repo
-        <*> "diffLink" ?? "{{rev}}{{base}}" -- TODO
         <*> "revisionInfo" ?? printf "<a href=\"%s/commit/{{rev}}>View Diff</a>" (Repo.uri repo)
+        <*> "diffLink" ?? "{{rev}}{{base}}" -- TODO
         <*> "limitRecent" ?? 20
         <*> "start" ?? firstCommit
         <*> "interestingTags" ?? "*"
+        <*> "interestingBranches" ?? "*"
         <*> "benchmarkScript" ?? "cloben"
         <*> ((++ [warnings]) <$> "benchmarks" ?? [])
         where key ?? def = obj .: key <|> pure def

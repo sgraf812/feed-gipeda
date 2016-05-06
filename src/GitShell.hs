@@ -1,6 +1,5 @@
 module GitShell
   ( isRepositoryRoot
-  , cloneBare
   , fetch
   , allCommits
   , firstCommit
@@ -33,9 +32,9 @@ isRepositoryRoot path = do
   (return . maybe False (`elem` [".git", "."]) . listToMaybe . lines) stdout
 
 
-cloneBare :: Repo -> FilePath -> IO ()
-cloneBare repo path =
-  callProcess "git" ["clone", "--bare", "--single-branch", "--quiet", Repo.uri repo, path]
+mirror :: Repo -> FilePath -> IO ()
+mirror repo path =
+  callProcess "git" ["clone", "--mirror", "--quiet", Repo.uri repo, path]
 
 
 remoteRepo :: FilePath -> IO Repo
@@ -58,7 +57,7 @@ sync repo = do
     then GitShell.fetch path
     else do
       createDirectoryIfMissing True path
-      GitShell.cloneBare repo path
+      GitShell.mirror repo path
 
 
 allCommits :: FilePath -> IO (Set SHA)

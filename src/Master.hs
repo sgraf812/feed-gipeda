@@ -199,7 +199,7 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
           OneShot -> return diffsWithoutRefresh
           PeriodicRefresh dt -> do
             ticks <- periodically dt
-            return (RepoDiff.compute Set.empty <$> activeReposB <@ ticks)
+            return (Banana.unionWith const (RepoDiff.compute Set.empty <$> activeReposB <@ ticks) diffsWithoutRefresh)
 
       -- Fetch every added ('dirty') repository, delay until fetch is complete
       -- TODO: parallelize and/or get rid of mapM_ somehow
