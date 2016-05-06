@@ -50,7 +50,7 @@ type NewCommitAction
 
 
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
-notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
+notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) =
   forM_ backlog $ \commit ->
     onNewCommit (File.writeBenchmarkCSV repo commit) "cloben" repo commit
 

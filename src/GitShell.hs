@@ -5,6 +5,7 @@ module GitShell
   , allCommits
   , firstCommit
   , remoteRepo
+  , showHead
   , sync
   , SHA
   ) where
@@ -16,7 +17,7 @@ import qualified Data.Set         as Set
 import           Repo             (Repo)
 import qualified Repo
 import           System.Directory (createDirectoryIfMissing)
-import           System.Exit      (ExitCode (ExitSuccess))
+import           System.Exit      (ExitCode (..))
 import           System.Process   (callProcess, readProcessWithExitCode)
 
 
@@ -68,6 +69,16 @@ allCommits path =
 firstCommit :: FilePath -> IO SHA
 firstCommit path =
   head <$> gitLogImpl path ["--reverse"]
+
+
+showHead :: FilePath -> FilePath -> IO (Maybe String)
+showHead path file = do
+  let
+    allArgs = ["-C", path, "show", "HEAD:" ++ file]
+  (exitCode, stdout, stderr) <- readProcessWithExitCode "git" allArgs ""
+  case exitCode of
+    ExitSuccess -> return (Just stdout)
+    ExitFailure _ -> return Nothing
 
 
 gitLogImpl :: FilePath -> [String] -> IO [SHA]
