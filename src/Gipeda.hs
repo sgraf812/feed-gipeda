@@ -10,6 +10,7 @@ module Gipeda
   ( GipedaSettings (..)
   , BenchmarkSettings (..)
   , settingsForRepo
+  , determineBenchmarkScript
   ) where
 
 
@@ -100,6 +101,15 @@ instance ToJSON GipedaSettings where
     ]
 
 
+determineBenchmarkScript :: Repo -> IO String
+determineBenchmarkScript repo = do
+  settingsFile <- Repo.settingsFile repo
+  maybeSettings <- Yaml.decodeFile settingsFile
+  return $ fromMaybe "cloben" $ do
+    (Yaml.Object settings) <- maybeSettings
+    Yaml.parseMaybe (\_ -> settings .: "benchmarkScript") ()
+
+
 settingsForRepo :: Repo -> IO GipedaSettings
 settingsForRepo repo = do
   clone <- Repo.cloneDir repo
@@ -137,4 +147,4 @@ settingsForRepo repo = do
         where key ?? def = obj .: key <|> pure def
     settings _ = settings (Yaml.object []) -- This should fill in some defaults nonetheless
 
-  Yaml.parseMonad settings yaml
+  Yaml.parseMonad settings yaml -- This should never fail. Never!

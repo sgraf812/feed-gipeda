@@ -29,6 +29,7 @@ import qualified Data.Text                  as Text
 import           Data.Time                  (NominalDiffTime)
 import qualified Data.Time                  as Time
 import           Debug.Trace                (traceShowId)
+import qualified Gipeda
 import           GitShell                   (SHA)
 import qualified GitShell
 import qualified Master.File                as File
@@ -50,9 +51,10 @@ type NewCommitAction
 
 
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
-notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) =
+notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
+  benchmarkScript <- Gipeda.determineBenchmarkScript repo
   forM_ backlog $ \commit ->
-    onNewCommit (File.writeBenchmarkCSV repo commit) "cloben" repo commit
+    onNewCommit (File.writeBenchmarkCSV repo commit) benchmarkScript repo commit
 
 
 finalizeRepos :: Paths -> Set Repo -> Set Repo -> IO ()
