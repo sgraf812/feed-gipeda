@@ -6,13 +6,19 @@ Use this when you host a variety of repositories and want to display performance
 
 ## I think I could use this but I haven't understood a word
 
-![Architecture visualization](https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/feed-gipeda.svg)
+This is a high-level example setup of how to use it:
 
-`feed-gipeda` extracts repositories to watch from a \*.yaml file (c.f. Config file), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (`<base-name>-<hash-of-URI>`) is created, under which a bare clone resides in the `repository/` folder.
+![High-level architecture visualization](https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/feed-gipeda.svg)
 
-All repositories are re-fetched at a configurable interval (`--dt`) and every commit for which there is no \*.csv result file in `site/out/results` generated yet causes the `--benchmark` command to be run. The concrete picture above uses [`cloben`](https://github.com/sgraf812/cloben) for that, but any other executable expecting a remote URI and commit SHA as the only two arguments and writing its (currently `cloben`-conformant) CSV output to `stdout` should do.
+Below there is a detailed visualization of the FRP layer (of the master node):
 
-After a number of `--benchmark` runs a `--gipeda` run follows to update the generated `site/` with the added results.
+![master architecture visualization](https://cdn.rawgit.com/sgraf812/feed-gipeda/master/docs/images/master.svg)
+
+`feed-gipeda` extracts repositories to watch from a \*.yaml file (c.f. Config file), which is continuously watched for changes. For each remote repository, a unique but human-readable directory (`<base-name>-<hash-of-URI>`) is created, under which a mirror repository resides in the `repository/` folder.
+
+All repositories are re-fetched at a configurable interval (`--dt`) and every commit for which there is no \*.csv result file in `site/out/results` generated yet causes a benchmark script to be run. The concrete example above uses [`cloben`](https://github.com/sgraf812/cloben) for that (it's also the default), but any other benchmark script which expects to be executed in the project folder and which writes its CSV output to `stdout` should do.
+
+Either after a benchmark finishes or a repository was fetched, gipeda is executed for both new commits to benchmark and for producing the website to be deployed via `rsync` to a remote location (`--rsync` flag).
 
 ## How to get it to run
 
