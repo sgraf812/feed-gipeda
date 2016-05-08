@@ -6,14 +6,13 @@
     and reused, so that restarting the daemon will not do unnecessary work.
 -}
 
-module Master
+module FeedGipeda.Master
   ( Paths (..)
   , OperationMode (..)
   , checkForNewCommits
   ) where
 
 
-import qualified Config
 import           Control.Concurrent         (forkIO, threadDelay)
 import           Control.Concurrent.MVar    (MVar, newEmptyMVar, putMVar,
                                              readMVar)
@@ -29,18 +28,19 @@ import qualified Data.Text                  as Text
 import           Data.Time                  (NominalDiffTime)
 import qualified Data.Time                  as Time
 import           Debug.Trace                (traceShowId)
-import qualified Gipeda
-import           GitShell                   (SHA)
-import qualified GitShell
-import qualified Master.File                as File
-import qualified Master.Finalize            as Finalize
-import           Master.RepoDiff            (RepoDiff)
-import qualified Master.RepoDiff            as RepoDiff
+import qualified FeedGipeda.Config          as Config
+import qualified FeedGipeda.Gipeda          as Gipeda
+import           FeedGipeda.GitShell        (SHA)
+import qualified FeedGipeda.GitShell        as GitShell
+import qualified FeedGipeda.Master.File     as File
+import qualified FeedGipeda.Master.Finalize as Finalize
+import           FeedGipeda.Master.RepoDiff (RepoDiff)
+import qualified FeedGipeda.Master.RepoDiff as RepoDiff
+import           FeedGipeda.Repo            (Repo)
+import qualified FeedGipeda.Repo            as Repo
 import           Reactive.Banana            ((<@), (<@>))
 import qualified Reactive.Banana            as Banana
 import qualified Reactive.Banana.Frameworks as Banana
-import           Repo                       (Repo)
-import qualified Repo
 import           System.Directory           (getCurrentDirectory)
 import           System.FilePath            (equalFilePath)
 import qualified System.FSNotify            as FS

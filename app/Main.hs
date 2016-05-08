@@ -29,7 +29,7 @@ parser = do
             (long "gipeda"
               <> value "gipeda"
               <> metavar "FILEPATH"
-              <> help "Path to the gipeda executable")
+              <> help "Custom path to the gipeda executable")
       <*> option str
             (long "config"
               <> value defaultConfig
@@ -46,20 +46,21 @@ parser = do
       <*> switch
             (long "check"
               <> help "Verify that the given config file is well-formed and exit")
-      <*> option (optional str)
+      <*> optional (option str
             (long "rsync"
               <> metavar "SSH_PATH"
-              <> help "ssh path under which to deploy site/ folders with rsync")
-      <*> option (optional endpoint)
+              <> help "ssh path under which to deploy site/ folders with rsync"))
+      <*> optional (option endpoint
             (long "master"
               <> metavar "ENDPOINT"
-              <> help "Start in master mode, distributing work items. Identified via the given TCP endpoint (ipadress:portnumber).")
-      <*> option (optional endpoint)
+              <> help "Start in master mode, distributing work items. Identified via the given TCP endpoint (ipadress:portnumber)."))
+      <*> optional (option endpoint
             (long "slave"
               <> metavar "ENDPOINT"
-              <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber).")
+              <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber)."))
       <*> switch
             (long "verbose"
+              <> short 'v'
               <> help "Show log messages intended for debugging")
 
 
@@ -69,4 +70,4 @@ main = Logging.withStderrLogging $ do
   join $ execParser $ info (helper <*> p) $
     fullDesc
       <> header "feed-gipeda - watch git repositories and feed benchmark results to gipeda"
-      <> progDesc "TODO"
+      -- <> progDesc "" -- TODO

@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Assets
+module FeedGipeda.Assets
   ( defaultIndexHtml
   ) where
 
 
-import Data.FileEmbed (embedFile)
-import Data.ByteString (ByteString)
+import           Data.ByteString (ByteString)
+import           Data.FileEmbed  (embedFile)
 
 
 defaultIndexHtml :: ByteString

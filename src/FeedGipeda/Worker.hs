@@ -1,19 +1,19 @@
-module Worker
+module FeedGipeda.Worker
   ( benchmark
   ) where
 
 {-| @benchmark@ contains the logic to be executed on slave nodes.
 -}
 
-import           Control.Logging as Logging
-import qualified Data.Text       as Text
-import           GitShell        (SHA)
-import           Repo            (Repo)
-import qualified Repo
-import           System.Exit     (ExitCode (..))
-import           System.IO.Temp  (withSystemTempDirectory)
-import           System.Process  (cwd, proc, readCreateProcessWithExitCode,
-                                  shell, showCommandForUser)
+import           Control.Logging     as Logging
+import qualified Data.Text           as Text
+import           FeedGipeda.GitShell (SHA)
+import           FeedGipeda.Repo     (Repo)
+import qualified FeedGipeda.Repo     as Repo
+import           System.Exit         (ExitCode (..))
+import           System.IO.Temp      (withSystemTempDirectory)
+import           System.Process      (cwd, proc, readCreateProcessWithExitCode,
+                                      shell, showCommandForUser)
 
 
 procReportingError :: Repo -> SHA -> Maybe FilePath -> FilePath -> [String] -> IO String

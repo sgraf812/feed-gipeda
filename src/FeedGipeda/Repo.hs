@@ -6,7 +6,7 @@
     if there should come any major changes to the code base.
 -}
 
-module Repo
+module FeedGipeda.Repo
   ( Repo (..)
   , unsafeFromString
   , uri
@@ -69,7 +69,7 @@ shortName repo =
 projectDir :: Repo -> IO FilePath
 projectDir repo = do
   cwd <- getCurrentDirectory
-  return (cwd </> Repo.uniqueName repo)
+  return (cwd </> uniqueName repo)
 
 
 cloneDir :: Repo -> IO FilePath

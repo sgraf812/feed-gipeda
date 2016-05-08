@@ -4,7 +4,6 @@ module FeedGipeda
   ) where
 
 
-import qualified Config
 import           Control.Arrow                                      (second)
 import           Control.Concurrent                                 (forkIO)
 import           Control.Concurrent.Chan                            (Chan,
@@ -26,16 +25,17 @@ import           Data.List                                          (elemIndex)
 import           Data.Maybe                                         (isJust)
 import           Data.Set                                           (Set)
 import           Data.Time                                          (NominalDiffTime)
-import           GitShell                                           (SHA)
-import qualified Master
+import qualified FeedGipeda.Config                                  as Config
+import           FeedGipeda.GitShell                                (SHA)
+import qualified FeedGipeda.Master                                  as Master
+import           FeedGipeda.Repo                                    (Repo)
+import qualified FeedGipeda.TaskQueue as TaskQueue
+import qualified FeedGipeda.THGenerated as THGenerated
+import qualified FeedGipeda.Worker as Worker
 import           Network.URI                                        (parseURI)
-import           Repo                                               (Repo)
 import           System.Directory                                   (getAppUserDataDirectory)
 import           System.Exit                                        (exitSuccess)
 import           System.FilePath                                    ((</>))
-import qualified TaskQueue
-import qualified THGenerated
-import qualified Worker
 
 
 data Endpoint

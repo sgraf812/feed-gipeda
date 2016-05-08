@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module TaskQueue
+module FeedGipeda.TaskQueue
   ( TaskQueue
   , start
   , execute

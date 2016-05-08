@@ -6,7 +6,7 @@
     since in reality it can only generate settings for @cloben@ output.
 -}
 
-module Gipeda
+module FeedGipeda.Gipeda
   ( GipedaSettings (..)
   , BenchmarkSettings (..)
   , settingsForRepo
@@ -20,10 +20,10 @@ import           Data.Maybe          (catMaybes, fromMaybe)
 import           Data.String         (fromString)
 import           Data.Yaml           (FromJSON (..), ToJSON (..), (.:), (.=))
 import qualified Data.Yaml           as Yaml
-import           GitShell            (SHA)
-import qualified GitShell
-import           Repo                (Repo)
-import qualified Repo
+import           FeedGipeda.GitShell (SHA)
+import qualified FeedGipeda.GitShell as GitShell
+import           FeedGipeda.Repo     (Repo)
+import qualified FeedGipeda.Repo     as Repo
 import           Text.Printf         (printf)
 
 

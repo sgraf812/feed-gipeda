@@ -1,9 +1,8 @@
-module Master.Finalize
+module FeedGipeda.Master.Finalize
   ( regenerateAndDeploy
   ) where
 
 
-import qualified Assets
 import           Control.Logging      as Logging
 import           Control.Monad        (unless, when)
 import           Data.Aeson           ((.=))
@@ -17,12 +16,13 @@ import           Data.Set             (Set)
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
 import qualified Data.Yaml            as Yaml
-import qualified Gipeda
-import           GitShell             (SHA)
+import qualified FeedGipeda.Assets    as Assets
+import qualified FeedGipeda.Gipeda    as Gipeda
+import           FeedGipeda.GitShell  (SHA)
+import           FeedGipeda.Repo      (Repo)
+import qualified FeedGipeda.Repo      as Repo
 import           Network.URI          (URI, uriAuthority, uriPath, uriRegName,
                                        uriToString)
-import           Repo                 (Repo)
-import qualified Repo
 import           System.Directory     (copyFile, createDirectoryIfMissing,
                                        doesFileExist)
 import           System.Exit          (ExitCode (..))

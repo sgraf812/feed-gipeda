@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Config
+module FeedGipeda.Config
   ( Config
   , empty
   , repos
@@ -16,9 +16,9 @@ import           Data.Set               (Set)
 import qualified Data.Set               as Set
 import           Data.Yaml              (FromJSON (..), Value (Object), (.:))
 import qualified Data.Yaml              as Yaml
+import           FeedGipeda.Repo        (Repo (..))
+import qualified FeedGipeda.Repo        as Repo
 import           Network.URI            (parseURI)
-import           Repo                   (Repo (..))
-import qualified Repo
 import           System.FilePath        (dropFileName, equalFilePath)
 
 

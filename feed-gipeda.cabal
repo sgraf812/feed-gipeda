@@ -12,22 +12,21 @@ category:            Development
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable feed-gipeda
+library
   hs-source-dirs:      src
-  main-is:             Main.hs
-  other-modules:       GitShell
-                     , FeedGipeda
-                     , Repo
-                     , Master
-                     , Worker
-                     , Gipeda
-                     , Config
-                     , THGenerated
-                     , TaskQueue
-                     , Assets
-                     , Master.Finalize
-                     , Master.File
-                     , Master.RepoDiff
+  exposed-modules:     FeedGipeda
+  other-modules:       FeedGipeda.GitShell
+                     , FeedGipeda.Repo
+                     , FeedGipeda.Master
+                     , FeedGipeda.Worker
+                     , FeedGipeda.Gipeda
+                     , FeedGipeda.Config
+                     , FeedGipeda.THGenerated
+                     , FeedGipeda.TaskQueue
+                     , FeedGipeda.Assets
+                     , FeedGipeda.Master.Finalize
+                     , FeedGipeda.Master.File
+                     , FeedGipeda.Master.RepoDiff
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , fsnotify >= 0.2.1 && < 0.3.0
@@ -41,7 +40,6 @@ executable feed-gipeda
                      , network-uri >= 2.6.0.0 && < 2.7.0.0
                      , data-hash >= 0.2.0.0 && < 0.3.0.0
                      , transformers >= 0.2.0.0
-                     , optparse-applicative >= 0.11
                      , time >= 1.5 && < 2.0
                      , bytestring >= 0.10.0.0
                      , binary >= 0.7.0.0
@@ -54,6 +52,17 @@ executable feed-gipeda
                      , reactive-banana >= 1.0.0.0
                      , logging >= 3.0.0
                      , temporary >= 1.1
+
+executable feed-gipeda
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , feed-gipeda
+                     , directory >= 1.2.0.0 && < 1.3.0.0
+                     , filepath >= 1.4.0.0 && < 1.5.0.0
+                     , optparse-applicative >= 0.11
+                     , logging >= 3.0.0
 
 test-suite test
   default-language:    Haskell2010

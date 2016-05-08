@@ -1,4 +1,4 @@
-module GitShell
+module FeedGipeda.GitShell
   ( isRepositoryRoot
   , fetch
   , allCommits
@@ -13,8 +13,8 @@ import           Data.Char        (isSpace)
 import           Data.Maybe       (listToMaybe)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
-import           Repo             (Repo)
-import qualified Repo
+import           FeedGipeda.Repo  (Repo)
+import qualified FeedGipeda.Repo  as Repo
 import           System.Directory (createDirectoryIfMissing)
 import           System.Exit      (ExitCode (..))
 import           System.Process   (callProcess, readProcessWithExitCode)
@@ -52,12 +52,12 @@ fetch path =
 sync :: Repo -> IO ()
 sync repo = do
   path <- Repo.cloneDir repo
-  hasClone <- GitShell.isRepositoryRoot path
+  hasClone <- isRepositoryRoot path
   if hasClone
-    then GitShell.fetch path
+    then fetch path
     else do
       createDirectoryIfMissing True path
-      GitShell.mirror repo path
+      mirror repo path
 
 
 allCommits :: FilePath -> IO (Set SHA)

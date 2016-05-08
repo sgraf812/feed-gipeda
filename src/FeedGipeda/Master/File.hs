@@ -1,4 +1,4 @@
-module Master.File
+module FeedGipeda.Master.File
   ( writeBenchmarkCSV
   , isBenchmarkCSV
   , writeBacklog
@@ -8,20 +8,21 @@ module Master.File
   ) where
 
 
-import           Data.Char        (toLower)
-import           Data.List        (isSuffixOf)
-import           Data.Maybe       (listToMaybe)
-import           Data.Set         (Set)
-import qualified Data.Set         as Set
-import           GitShell         (SHA)
-import qualified GitShell
-import           Repo             (Repo)
-import qualified Repo
-import           System.Directory (createDirectoryIfMissing, doesFileExist,
-                                   getCurrentDirectory, getDirectoryContents)
-import           System.FilePath  (dropFileName, makeRelative, normalise,
-                                   splitDirectories, takeBaseName, takeBaseName,
-                                   takeExtension, takeFileName, (<.>), (</>))
+import           Data.Char           (toLower)
+import           Data.List           (isSuffixOf)
+import           Data.Maybe          (listToMaybe)
+import           Data.Set            (Set)
+import qualified Data.Set            as Set
+import           FeedGipeda.GitShell (SHA)
+import qualified FeedGipeda.GitShell as GitShell
+import           FeedGipeda.Repo     (Repo)
+import qualified FeedGipeda.Repo     as Repo
+import           System.Directory    (createDirectoryIfMissing, doesFileExist,
+                                      getCurrentDirectory, getDirectoryContents)
+import           System.FilePath     (dropFileName, makeRelative, normalise,
+                                      splitDirectories, takeBaseName,
+                                      takeBaseName, takeExtension, takeFileName,
+                                      (<.>), (</>))
 
 
 -- Until this is done by gipeda, we have to also produce the backlog on our own.

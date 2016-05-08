@@ -1,13 +1,13 @@
-module Master.RepoDiff
+module FeedGipeda.Master.RepoDiff
   ( RepoDiff (..)
   , compute
   , apply
   ) where
 
 
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import           Repo     (Repo)
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
+import           FeedGipeda.Repo (Repo)
 
 
 data RepoDiff

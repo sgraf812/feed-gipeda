@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module THGenerated
+module FeedGipeda.THGenerated
   ( benchmarkClosure
   , stringDict
   , __remoteTable
@@ -11,9 +11,9 @@ import           Control.Distributed.Process         (Closure, Process, Static,
 import           Control.Distributed.Process.Closure (SerializableDict,
                                                       functionTDict, mkClosure,
                                                       remotable)
-import           GitShell                            (SHA)
-import           Repo                                (Repo)
-import qualified Worker
+import           FeedGipeda.GitShell                 (SHA)
+import           FeedGipeda.Repo                     (Repo)
+import qualified FeedGipeda.Worker                   as Worker
 
 
 benchmarkProcess :: (String, Repo, SHA) -> Process String
