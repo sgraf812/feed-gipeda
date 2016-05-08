@@ -69,9 +69,18 @@ test-suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             test.hs
+  other-modules:       Acceptance
+                     , Acceptance.Files
   build-depends:       base >= 4 && < 5
                      , tasty >= 0.11
                      , tasty-quickcheck
                      , tasty-smallcheck
                      , tasty-hunit
                      , tasty-hspec
+                     , temporary >= 1.1
+                     , file-embed
+                     , exceptions
+                     , process >= 1.2.0.0 && < 1.5.0.0
+                     , managed
+                     , bytestring >= 0.10.0.0
+                     , transformers >= 0.2.0.0
