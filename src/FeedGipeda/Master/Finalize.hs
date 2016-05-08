@@ -4,14 +4,14 @@ module FeedGipeda.Master.Finalize
 
 
 import           Control.Logging      as Logging
-import           Control.Monad        (unless, when)
+import           Control.Monad        (unless, void, when)
 import           Data.Aeson           ((.=))
 import qualified Data.Aeson           as Json
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Foldable        (find)
 import           Data.List            (elemIndex, stripPrefix)
-import           Data.Maybe           (fromMaybe)
+import           Data.Maybe           (fromMaybe, isNothing)
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
@@ -118,11 +118,15 @@ generateMapping file repos =
       [Text.pack (sshSubPath repo) .= Repo.uri repo]) repos)))
 
 
-sshUriPath :: String -> FilePath
-sshUriPath sshUri =
+parseSSHUri :: String -> (Maybe String, FilePath)
+parseSSHUri sshUri =
   case elemIndex ':' (reverse sshUri) of
-    Nothing -> sshUri -- Assume it's a local file path
-    Just n -> drop (length sshUri - n) sshUri
+    Nothing -> (Nothing, sshUri) -- Assume it's a local file path
+    Just n ->
+      let
+        n' = length sshUri - n
+      in
+        (Just (take (n' - 1) sshUri), drop n' sshUri)
 
 
 rsyncSite :: Set Repo -> Repo -> Maybe String -> IO ()
@@ -135,9 +139,15 @@ rsyncSite repos repo = maybe (return ()) $ \remoteDir -> do
   -- Otherwise, we couldn't cope with nested sshSubPaths.
   -- -a: archive mode (many different flags), -v verbose, -z compress
   Logging.log (Text.pack "rsyncing")
+  let (sshPart, filePart) = parseSSHUri remoteDir
+
+  case sshPart of
+    Nothing -> createDirectoryIfMissing True (filePart </> sshSubPath repo)
+    Just uri ->
+      void $ executeIn Nothing "ssh" [uri, "mkdir -p " ++ filePart </> sshSubPath repo]
+
   executeIn Nothing "rsync"
     [ "-avz"
-    , "--rsync-path=mkdir -p " ++ (sshUriPath remoteDir </> sshSubPath repo) ++ " && rsync"
     , addTrailingPathSeparator (projectDir </> "site")
     , remoteDir </> sshSubPath repo
     ]

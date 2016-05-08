@@ -81,6 +81,8 @@ test-suite test
                      , file-embed
                      , exceptions
                      , process >= 1.2.0.0 && < 1.5.0.0
+                     , directory >= 1.2.0.0 && < 1.3.0.0
+                     , filepath >= 1.4.0.0 && < 1.5.0.0
                      , managed
                      , bytestring >= 0.10.0.0
                      , transformers >= 0.2.0.0

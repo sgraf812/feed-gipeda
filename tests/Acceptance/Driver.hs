@@ -3,7 +3,8 @@
 module Acceptance.Driver
   ( Args (..)
   , defaultConfig
-  , withExecuteInTmpDir
+  , withCheckInTmpDir
+  , withOneShotInTmpDir
   ) where
 
 
@@ -18,14 +19,29 @@ import           System.Process             (cwd, proc,
 
 data Args
   = Args
-  { check  :: Bool
-  , config :: FilePath
+  { check         :: Bool
+  , config        :: FilePath
+  , deploymentDir :: Maybe FilePath
+  , oneShot       :: Bool
   } deriving (Show, Eq)
 
 
 defaultConfig :: FilePath -> Args
-defaultConfig =
-  Args False
+defaultConfig config =
+  Args False config Nothing False
+
+
+withCheckInTmpDir :: FilePath -> Managed (FilePath, ExitCode, String, String)
+withCheckInTmpDir config =
+  withExecuteInTmpDir (defaultConfig config) { check = True }
+
+
+withOneShotInTmpDir :: Maybe FilePath -> FilePath -> Managed (FilePath, ExitCode, String, String)
+withOneShotInTmpDir deploymentDir config =
+  withExecuteInTmpDir (defaultConfig config)
+    { deploymentDir = deploymentDir
+    , oneShot = True
+    }
 
 
 withExecuteInTmpDir :: Args -> Managed (FilePath, ExitCode, String, String)
@@ -35,6 +51,8 @@ withExecuteInTmpDir Args{..} = do
     args = execWriter $ do
       tell ["--config", config]
       when check (tell ["--check"])
+      when oneShot (tell ["--one-shot"])
+      maybe (return ()) (\r -> tell ["--rsync", r]) deploymentDir
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")

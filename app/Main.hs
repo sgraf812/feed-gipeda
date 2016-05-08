@@ -65,7 +65,7 @@ parser = do
 
 
 main :: IO ()
-main = Logging.withStderrLogging $ do
+main = Logging.withStdoutLogging $ do
   p <- parser
   join $ execParser $ info (helper <*> p) $
     fullDesc
