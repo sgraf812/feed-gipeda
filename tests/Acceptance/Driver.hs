@@ -2,9 +2,9 @@
 
 module Acceptance.Driver
   ( Args (..)
-  , defaultConfig
   , withCheckInTmpDir
   , withOneShotInTmpDir
+  , withDaemonInTmpDir
   ) where
 
 
@@ -14,7 +14,8 @@ import           Control.Monad.Trans.Writer (Writer, execWriter, tell)
 import           System.Exit                (ExitCode)
 import           System.IO.Temp             (withSystemTempDirectory)
 import           System.Process             (cwd, proc,
-                                             readCreateProcessWithExitCode)
+                                             readCreateProcessWithExitCode,
+                                             showCommandForUser)
 
 
 data Args
@@ -23,28 +24,41 @@ data Args
   , config        :: FilePath
   , deploymentDir :: Maybe FilePath
   , oneShot       :: Bool
+  , dt            :: Maybe Int
   } deriving (Show, Eq)
 
 
 defaultConfig :: FilePath -> Args
 defaultConfig config =
-  Args False config Nothing False
+  Args False config Nothing False Nothing
 
 
 withCheckInTmpDir :: FilePath -> Managed (FilePath, ExitCode, String, String)
-withCheckInTmpDir config =
-  withExecuteInTmpDir (defaultConfig config) { check = True }
+withCheckInTmpDir config = do
+  (path, fork) <- withExecuteInTmpDir (defaultConfig config) { check = True }
+  (exitCode, stdout, stderr) <- liftIO fork
+  return (path, exitCode, stdout, stderr)
 
 
 withOneShotInTmpDir :: Maybe FilePath -> FilePath -> Managed (FilePath, ExitCode, String, String)
-withOneShotInTmpDir deploymentDir config =
-  withExecuteInTmpDir (defaultConfig config)
+withOneShotInTmpDir deploymentDir config = do
+  (path, fork) <- withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
     , oneShot = True
     }
+  (exitCode, stdout, stderr) <- liftIO fork
+  return (path, exitCode, stdout, stderr)
 
 
-withExecuteInTmpDir :: Args -> Managed (FilePath, ExitCode, String, String)
+withDaemonInTmpDir :: Maybe FilePath -> Maybe Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
+withDaemonInTmpDir deploymentDir dt config =
+  withExecuteInTmpDir (defaultConfig config)
+    { deploymentDir = deploymentDir
+    , dt = dt
+    }
+
+
+withExecuteInTmpDir :: Args -> Managed (FilePath, IO (ExitCode, String, String))
 withExecuteInTmpDir Args{..} = do
   let
     args :: [String]
@@ -53,9 +67,8 @@ withExecuteInTmpDir Args{..} = do
       when check (tell ["--check"])
       when oneShot (tell ["--one-shot"])
       maybe (return ()) (\r -> tell ["--rsync", r]) deploymentDir
+      maybe (return ()) (\dt -> tell ["--dt", show dt]) dt
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")
-  (c, out, err) <- liftIO $
-    readCreateProcessWithExitCode (proc "feed-gipeda" args) { cwd = Just path } ""
-  return (path, c, out, err)
+  return (path, liftIO $ readCreateProcessWithExitCode (proc "feed-gipeda" args) { cwd = Just path } "")

@@ -3,21 +3,30 @@ module Acceptance
   ) where
 
 
-import qualified Acceptance.Driver      as Driver
-import qualified Acceptance.Files       as Files
-import           Control.Monad          (filterM, unless, when, (<=<))
-import           Control.Monad.IO.Class (MonadIO (..))
-import           Control.Monad.Managed  (managed, runManaged)
-import           Data.List              (isInfixOf)
-import           Data.Maybe             (isJust)
-import           System.Directory       (doesFileExist, findExecutable,
-                                         getDirectoryContents, makeAbsolute)
-import           System.Exit            (ExitCode (..))
-import           System.FilePath        (takeExtension, (</>))
-import           System.IO.Temp         (withSystemTempDirectory)
+import qualified Acceptance.Driver       as Driver
+import qualified Acceptance.Files        as Files
+import           Control.Concurrent      (ThreadId, forkIO, killThread,
+                                          myThreadId, threadDelay)
+import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import           Control.Exception       (bracket, catch, throwTo)
+import           Control.Monad           (filterM, unless, when, (<=<))
+import           Control.Monad.IO.Class  (MonadIO (..))
+import           Control.Monad.Managed   (Managed, managed, runManaged)
+import qualified Data.ByteString         as BS
+import           Data.List               (isInfixOf, isSuffixOf)
+import           Data.Maybe              (isJust)
+import           System.Directory        (doesFileExist, findExecutable,
+                                          getDirectoryContents, makeAbsolute)
+import           System.Exit             (ExitCode (..))
+import           System.FilePath         (takeDirectory, takeExtension, (</>))
+import qualified System.FSNotify         as FS
+import           System.IO               (hClose)
+import           System.IO.Temp          (withSystemTempDirectory,
+                                          withSystemTempFile)
+import           Test.HUnit.Lang         (HUnitFailure)
 import           Test.Tasty
-import           Test.Tasty.HUnit       (Assertion, assertBool, assertEqual,
-                                         assertFailure, testCase)
+import           Test.Tasty.HUnit        (Assertion, assertBool, assertEqual,
+                                          assertFailure, testCase)
 
 
 tests ::  TestTree
@@ -62,30 +71,69 @@ oneShot = testGroup "one-shot mode"
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir (Just deploymentDir)
       assertNormalExit exitCode stderr
       assertSiteFolderComplete (deploymentDir </> "sgraf812" </> "benchmark-test")
-  ] where
-      assertSiteFolderComplete :: MonadIO io => FilePath -> io ()
-      assertSiteFolderComplete site = do
-        -- Benchmark results
-        csvs <- liftIO $ filesInDirWithExt ".csv" (site </> "out" </> "results")
-        assertNotEqual "should produce some result files" [] csvs
-        nonEmptyCsvs <- liftIO $ filterM (fmap (not . null) . readFile) csvs
-        assertNotEqual "should produce some non-empty result files" [] nonEmptyCsvs
-
-        -- Gipeda files
-        jsons <- liftIO $ filesInDirWithExt ".json" (site </> "out" </> "graphs" </> "benchmarks" </> "fib")
-        assertNotEqual "should produce some json data through gipeda" [] (filter ((== ".json") . takeExtension) jsons)
-
-      filesInDirWithExt :: String -> FilePath -> IO [FilePath]
-      filesInDirWithExt ext dir =
-        map (dir </>) . filter ((== ext) . takeExtension) <$> getDirectoryContents dir
+  -- Test with multiple repos in config? There shouldn't be any new code paths.
+  ]
 
 
 daemon :: TestTree
-daemon = testGroup "daemon mode" []
+daemon = testGroup "daemon mode"
+  [ testCase "adding a repo to the config causes that repo to be added" $ runManaged $ do
+      (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
+      liftIO (hClose handle)
+      deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
+      (path, fork) <- Driver.withDaemonInTmpDir (Just deploymentDir) Nothing config
+      pid <- liftIO myThreadId
+      forkAndKill $ do
+        fork
+        catch -- That catch doesn't seem to work, don't know why.
+          (assertFailure "daemon should not exit")
+          (\e -> throwTo pid (e :: HUnitFailure))
+      liftIO (threadDelay 5000000) -- ouch
+      liftIO (BS.writeFile config Files.wellFormedConfig)
+      assertCsvFilesChangeWithin 300 path
+  ]
+
+
+forkAndKill :: IO () -> Managed ThreadId
+forkAndKill action =
+  managed $ bracket (forkIO action) killThread
 
 
 parallelization :: TestTree
 parallelization = testGroup "parallelization" []
+
+
+assertCsvFilesChangeWithin :: MonadIO io => Int -> FilePath -> io ()
+assertCsvFilesChangeWithin seconds treeRoot = liftIO $ runManaged $ do
+  mgr <- managed FS.withManager
+  liftIO $ do
+    var <- newEmptyMVar
+    let matches fp = takeExtension fp == ".csv" && "results" `isSuffixOf` takeDirectory fp
+    FS.watchTree mgr treeRoot (matches . FS.eventPath) $ \path ->
+      putMVar var True
+    forkIO $ do
+      threadDelay (seconds * 1000000)
+      putMVar var False
+    result <- takeMVar var
+    unless result (assertFailure "No CSV change within timeout")
+
+
+assertSiteFolderComplete :: MonadIO io => FilePath -> io ()
+assertSiteFolderComplete site = do
+  -- Benchmark results
+  csvs <- liftIO $ filesInDirWithExt ".csv" (site </> "out" </> "results")
+  assertNotEqual "should produce some result files" [] csvs
+  nonEmptyCsvs <- liftIO $ filterM (fmap (not . null) . readFile) csvs
+  assertNotEqual "should produce some non-empty result files" [] nonEmptyCsvs
+
+  -- Gipeda files
+  jsons <- liftIO $ filesInDirWithExt ".json" (site </> "out" </> "graphs" </> "benchmarks" </> "fib")
+  assertNotEqual "should produce some json data through gipeda" [] (filter ((== ".json") . takeExtension) jsons)
+
+
+filesInDirWithExt :: String -> FilePath -> IO [FilePath]
+filesInDirWithExt ext dir =
+  map (dir </>) . filter ((== ext) . takeExtension) <$> getDirectoryContents dir
 
 
 assertNormalExit :: MonadIO io => ExitCode -> String -> io ()

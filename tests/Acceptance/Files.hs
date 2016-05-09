@@ -3,6 +3,7 @@
 module Acceptance.Files
   ( withWellFormedConfig
   , withMalformedConfig
+  , wellFormedConfig
   ) where
 
 

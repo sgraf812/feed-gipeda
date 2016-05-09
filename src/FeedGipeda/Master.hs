@@ -41,8 +41,9 @@ import qualified FeedGipeda.Repo            as Repo
 import           Reactive.Banana            ((<@), (<@>))
 import qualified Reactive.Banana            as Banana
 import qualified Reactive.Banana.Frameworks as Banana
-import           System.Directory           (getCurrentDirectory)
-import           System.FilePath            (equalFilePath)
+import           System.Directory           (canonicalizePath,
+                                             getCurrentDirectory)
+import           System.FilePath            (equalFilePath, takeDirectory)
 import qualified System.FSNotify            as FS
 
 
@@ -169,9 +170,12 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
 
   let
     watchFile :: FilePath -> Banana.MomentIO (Banana.Event FS.Event)
-    watchFile path = do
+    watchFile path' = do
       (event, fire) <- Banana.newEvent
-      liftIO (FS.watchDir mgr path (equalFilePath path . FS.eventPath) fire)
+      path <- liftIO (canonicalizePath path')
+      liftIO $ FS.watchDir mgr (takeDirectory path) (equalFilePath path . FS.eventPath) $ \evt -> do
+        Logging.debug (Text.pack ("File changed: " ++ show evt))
+        fire evt
       return event
 
     watchTree :: FilePath -> (FilePath -> Bool) -> Banana.MomentIO (Banana.Event FS.Event)
