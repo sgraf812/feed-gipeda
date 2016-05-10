@@ -181,7 +181,9 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
     watchTree :: FilePath -> (FilePath -> Bool) -> Banana.MomentIO (Banana.Event FS.Event)
     watchTree path predicate = do
       (event, fire) <- Banana.newEvent
-      liftIO (FS.watchTree mgr path (predicate . FS.eventPath) fire)
+      liftIO $ FS.watchTree mgr path (predicate . FS.eventPath) $ \evt -> do
+        Logging.debug (Text.pack ("File changed: " ++ show evt))
+        fire evt
       return event
 
     networkDescription :: Banana.MomentIO ()
@@ -211,7 +213,11 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
       -- TODO: parallelize and/or get rid of mapM_ somehow
       fetchedRepos <-
         Banana.mapEventIO
-          (\added -> mapM_ GitShell.sync added >> return added)
+          (\added -> do
+            forM_ added $ \repo -> do
+              Logging.log (Text.pack ("Syncing " ++ Repo.shortName repo))
+              GitShell.sync repo
+            return added)
           (RepoDiff.added <$> diffs)
 
       -- Source: Changed benchmark CSV files

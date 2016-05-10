@@ -14,13 +14,14 @@ import           Control.Monad.IO.Class  (MonadIO (..))
 import           Control.Monad.Managed   (Managed, managed, runManaged)
 import qualified Data.ByteString         as BS
 import           Data.List               (isInfixOf, isSuffixOf)
-import           Data.Maybe              (isJust)
+import           Data.Maybe              (fromJust, isJust)
+import           Network.URI             (parseURI)
 import           System.Directory        (doesFileExist, findExecutable,
                                           getDirectoryContents, makeAbsolute)
 import           System.Exit             (ExitCode (..))
 import           System.FilePath         (takeDirectory, takeExtension, (</>))
 import qualified System.FSNotify         as FS
-import           System.IO               (hClose)
+import           System.IO               (hClose, hPutStrLn)
 import           System.IO.Temp          (withSystemTempDirectory,
                                           withSystemTempFile)
 import           Test.HUnit.Lang         (HUnitFailure)
@@ -81,17 +82,32 @@ daemon = testGroup "daemon mode"
       (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, fork) <- Driver.withDaemonInTmpDir (Just deploymentDir) Nothing config
+      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) Nothing config
+      spawnDaemon daemon
+      liftIO (threadDelay 5000000) -- ouch
+      liftIO (BS.writeFile config Files.wellFormedConfig)
+      assertCsvFilesChangeWithin 300 deploymentDir
+  , testCase "adding commits to a repo under watch should trigger benchmarks" $ runManaged $ do
+      repo <- Files.withInitGitRepo
+      (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
+      liftIO (hPutStrLn handle "repositories:")
+      liftIO (hPutStrLn handle ("- file://" ++ repo))
+      liftIO (hClose handle)
+      deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
+      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) (Just 5) config
+      spawnDaemon daemon
+      liftIO (threadDelay 5000000)
+      liftIO $ Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test")
+      assertCsvFilesChangeWithin 300 deploymentDir
+  ]
+  where
+    spawnDaemon daemon = do
       pid <- liftIO myThreadId
       forkAndKill $ do
-        fork
+        daemon
         catch -- That catch doesn't seem to work, don't know why.
           (assertFailure "daemon should not exit")
           (\e -> throwTo pid (e :: HUnitFailure))
-      liftIO (threadDelay 5000000) -- ouch
-      liftIO (BS.writeFile config Files.wellFormedConfig)
-      assertCsvFilesChangeWithin 300 path
-  ]
 
 
 forkAndKill :: IO () -> Managed ThreadId

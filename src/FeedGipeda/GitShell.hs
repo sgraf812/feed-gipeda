@@ -65,9 +65,9 @@ allCommits path =
   Set.fromList <$> gitLogImpl path []
 
 
-firstCommit :: FilePath -> IO SHA
+firstCommit :: FilePath -> IO (Maybe SHA)
 firstCommit path =
-  head <$> gitLogImpl path ["--reverse"]
+  listToMaybe <$> gitLogImpl path ["--reverse"]
 
 
 showHead :: FilePath -> FilePath -> IO (Maybe String)

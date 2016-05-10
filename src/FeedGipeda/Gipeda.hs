@@ -24,6 +24,7 @@ import           FeedGipeda.GitShell (SHA)
 import qualified FeedGipeda.GitShell as GitShell
 import           FeedGipeda.Repo     (Repo)
 import qualified FeedGipeda.Repo     as Repo
+import           System.Directory    (doesFileExist)
 import           Text.Printf         (printf)
 
 
@@ -104,7 +105,8 @@ instance ToJSON GipedaSettings where
 determineBenchmarkScript :: Repo -> IO String
 determineBenchmarkScript repo = do
   settingsFile <- Repo.settingsFile repo
-  maybeSettings <- Yaml.decodeFile settingsFile
+  exists <- doesFileExist settingsFile
+  maybeSettings <- if exists then Yaml.decodeFile settingsFile else return Nothing
   return $ fromMaybe "cloben" $ do
     (Yaml.Object settings) <- maybeSettings
     Yaml.parseMaybe (\_ -> settings .: "benchmarkScript") ()
@@ -139,7 +141,7 @@ settingsForRepo repo = do
         <*> "revisionInfo" ?? printf "<a href=\"%s/commit/{{rev}}>View Diff</a>" (Repo.uri repo)
         <*> "diffLink" ?? "{{rev}}{{base}}" -- TODO
         <*> "limitRecent" ?? 20
-        <*> "start" ?? firstCommit
+        <*> "start" ?? fromMaybe "HEAD" firstCommit -- "HEAD" doesn't really work, but better than crashing?! We shouldn't execute gipeda on an empty repository after all
         <*> "interestingTags" ?? "*"
         <*> "interestingBranches" ?? "*"
         <*> "benchmarkScript" ?? "cloben"

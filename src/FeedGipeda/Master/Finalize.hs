@@ -11,7 +11,7 @@ import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Foldable        (find)
 import           Data.List            (elemIndex, stripPrefix)
-import           Data.Maybe           (fromMaybe, isNothing)
+import           Data.Maybe           (fromMaybe, isJust, isNothing)
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
 import qualified Data.Text            as Text
@@ -19,6 +19,7 @@ import qualified Data.Yaml            as Yaml
 import qualified FeedGipeda.Assets    as Assets
 import qualified FeedGipeda.Gipeda    as Gipeda
 import           FeedGipeda.GitShell  (SHA)
+import qualified FeedGipeda.GitShell  as GitShell
 import           FeedGipeda.Repo      (Repo)
 import qualified FeedGipeda.Repo      as Repo
 import           Network.URI          (URI, uriAuthority, uriPath, uriRegName,
@@ -51,11 +52,16 @@ regenerateAndDeploy :: FilePath -> Maybe String -> Set Repo -> Repo -> IO ()
 regenerateAndDeploy gipeda rsyncPath repos repo = do
   project <- Repo.projectDir repo
   Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
-  createDirectoryIfMissing True (project </> "site" </> "js")
-  saveSettingsIfNotExists repo
-  executeIn (Just project) gipeda ["-j"]
-  rsyncSite repos repo rsyncPath
-  return ()
+  clone <- Repo.cloneDir repo
+  first <- GitShell.firstCommit clone
+  if isJust first
+    then do
+      saveSettingsIfNotExists repo
+      executeIn (Just project) gipeda ["-j"]
+      rsyncSite repos repo rsyncPath
+      return ()
+    else
+      Logging.log (Text.pack "There were no commits")
 
 
 saveSettingsIfNotExists :: Repo -> IO ()
