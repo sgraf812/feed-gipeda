@@ -83,7 +83,7 @@ daemon = testGroup "daemon mode"
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
       (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) Nothing config
-      spawnDaemon daemon
+      spawnAssertNotExit daemon
       liftIO (threadDelay 5000000) -- ouch
       liftIO (BS.writeFile config Files.wellFormedConfig)
       assertCsvFilesChangeWithin 300 deploymentDir
@@ -95,32 +95,49 @@ daemon = testGroup "daemon mode"
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
       (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) (Just 5) config
-      spawnDaemon daemon
+      spawnAssertNotExit daemon
       liftIO (threadDelay 5000000)
       liftIO $ Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test")
       assertCsvFilesChangeWithin 300 deploymentDir
   ]
-  where
-    spawnDaemon daemon = do
-      pid <- liftIO myThreadId
-      forkAndKill $ do
-        daemon
-        catch -- That catch doesn't seem to work, don't know why.
-          (assertFailure "daemon should not exit")
-          (\e -> throwTo pid (e :: HUnitFailure))
-
-
-forkAndKill :: IO () -> Managed ThreadId
-forkAndKill action =
-  managed $ bracket (forkIO action) killThread
 
 
 parallelization :: TestTree
-parallelization = testGroup "parallelization" []
+parallelization = testGroup "parallelization"
+  [ testCase "does not benchmark in master mode" $ runManaged $ do
+      (path, master) <-
+        Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
+      spawnAssertNotExit master
+      assertCsvFilesDontChangeWithin 100 path
+  , testCase "can distribute work on slave nodes" $ runManaged $ do
+      (path, master) <-
+        Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
+      spawnAssertNotExit master
+      spawnSlave 12346
+      spawnSlave 12347
+      spawnSlave 12348
+      spawnSlave 12349
+      assertCsvFilesChangeWithin 300 path
+  ]
+  where
+    spawnSlave port =
+      spawnAssertNotExit (Driver.slave port)
 
 
-assertCsvFilesChangeWithin :: MonadIO io => Int -> FilePath -> io ()
-assertCsvFilesChangeWithin seconds treeRoot = liftIO $ runManaged $ do
+
+spawnAssertNotExit :: IO (ExitCode, String, String) -> Managed ThreadId
+spawnAssertNotExit proc = do
+  pid <- liftIO myThreadId
+  let forkAndKill action = managed $ bracket (forkIO action) killThread
+  forkAndKill $ do
+    (_, stdout, stderr) <- proc
+    catch -- That catch doesn't seem to work, don't know why.
+      (assertFailure "daemon should not exit")
+      (\e -> throwTo pid (e :: HUnitFailure))
+
+
+assertCsvFilesWithin :: MonadIO io => (Bool -> Bool) -> Int -> FilePath -> io ()
+assertCsvFilesWithin isOk seconds treeRoot = liftIO $ runManaged $ do
   mgr <- managed FS.withManager
   liftIO $ do
     var <- newEmptyMVar
@@ -131,7 +148,17 @@ assertCsvFilesChangeWithin seconds treeRoot = liftIO $ runManaged $ do
       threadDelay (seconds * 1000000)
       putMVar var False
     result <- takeMVar var
-    unless result (assertFailure "No CSV change within timeout")
+    unless (isOk result) (assertFailure ((if result then "" else "No ") ++ "CSV change within timeout"))
+
+
+assertCsvFilesDontChangeWithin :: MonadIO io => Int -> FilePath -> io ()
+assertCsvFilesDontChangeWithin =
+  assertCsvFilesWithin not
+
+
+assertCsvFilesChangeWithin :: MonadIO io => Int -> FilePath -> io ()
+assertCsvFilesChangeWithin =
+  assertCsvFilesWithin id
 
 
 assertSiteFolderComplete :: MonadIO io => FilePath -> io ()

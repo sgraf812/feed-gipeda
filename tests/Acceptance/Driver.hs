@@ -5,6 +5,8 @@ module Acceptance.Driver
   , withCheckInTmpDir
   , withOneShotInTmpDir
   , withDaemonInTmpDir
+  , withMasterInTmpDir
+  , slave
   ) where
 
 
@@ -25,12 +27,13 @@ data Args
   , deploymentDir :: Maybe FilePath
   , oneShot       :: Bool
   , dt            :: Maybe Int
+  , masterPort    :: Maybe Int
   } deriving (Show, Eq)
 
 
 defaultConfig :: FilePath -> Args
 defaultConfig config =
-  Args False config Nothing False Nothing
+  Args False config Nothing False Nothing Nothing
 
 
 withCheckInTmpDir :: FilePath -> Managed (FilePath, ExitCode, String, String)
@@ -58,16 +61,33 @@ withDaemonInTmpDir deploymentDir dt config =
     }
 
 
+withMasterInTmpDir :: Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
+withMasterInTmpDir port config =
+  withExecuteInTmpDir (defaultConfig config)
+    { masterPort = Just port
+    }
+
+
+slave :: Int -> IO (ExitCode, String, String)
+slave port =
+  readCreateProcessWithExitCode (proc "feed-gipeda" ["--slave", "localhost:" ++ show port]) ""
+
+
 withExecuteInTmpDir :: Args -> Managed (FilePath, IO (ExitCode, String, String))
 withExecuteInTmpDir Args{..} = do
   let
+    whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
+    whenJust val action =
+      maybe (return ()) action val
+
     args :: [String]
     args = execWriter $ do
       tell ["--config", config]
       when check (tell ["--check"])
       when oneShot (tell ["--one-shot"])
-      maybe (return ()) (\r -> tell ["--rsync", r]) deploymentDir
-      maybe (return ()) (\dt -> tell ["--dt", show dt]) dt
+      whenJust deploymentDir $ \r -> tell ["--rsync", r]
+      whenJust dt $ \dt -> tell ["--dt", show dt]
+      whenJust masterPort $ \p -> tell ["--master", "localhost:" ++ show p]
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")

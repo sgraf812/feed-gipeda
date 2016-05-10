@@ -15,7 +15,7 @@ endpoint = do
     Nothing -> readerError "Expected a colon separator"
     Just idx -> do
       let (host, port') = splitAt idx s
-      case readMaybe port' of
+      case readMaybe (drop 1 port') of
         Just port -> return (FeedGipeda.Endpoint host port)
         Nothing -> readerError "Port was not integral"
 
