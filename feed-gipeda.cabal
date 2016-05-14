@@ -90,3 +90,7 @@ test-suite test
                      , transformers >= 0.2.0.0
                      , fsnotify >= 0.2.1 && < 0.3.0
                      , network-uri >= 2.6.0.0 && < 2.7.0.0
+
+source-repository head
+  type: git
+  location: https://github.com/sgraf812/feed-gipeda.git
