@@ -1,6 +1,13 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-| A task queue implementation based on
+    <http://haskell-distributed.github.io/tutorials/4ch.html#building-a-task-queue>.
+    It is however flexible in the number of active slaves, which are discovered
+    via the SimpleLocalnet backend of cloud haskell.
+    Also, failures are automatically retried.
+-}
+
 module FeedGipeda.TaskQueue
   ( TaskQueue
   , start
@@ -38,6 +45,9 @@ import           Data.Typeable                                      (Typeable)
 import           GHC.Generics                                       (Generic)
 
 
+{-| Abstract process representing the task queue. Notably has an instance of
+    @Resolvable@.
+-}
 newtype TaskQueue a
   = TaskQueue ProcessId
 
@@ -75,6 +85,7 @@ initialQueueState =
   QueueState Map.empty Map.empty Seq.empty
 
 
+-- | Spawn the task queue on the local node and start to discover slave nodes.
 start
   :: forall a . Serializable a
   => Backend
@@ -85,11 +96,15 @@ start backend = do
   return queue
 
 
+-- ^ Execute task on a slave node.
 execute
   :: Serializable a
   => TaskQueue a
+  -- ^ The task queue which will dispatch the task to a previously discovered slave
   -> Static (SerializableDict a)
+  -- ^ A static pointer for the slave to find the entry point of the task to execute
   -> Closure (Process a)
+  -- ^ The state in which to execute the task
   -> Process a
 execute queue dict closure =
   call queue (dict, closure)
@@ -204,5 +219,6 @@ slaveDiscovery backend queue = forever $ do
   cast queue (SlaveListChanged (Set.delete self slaves))
 
 
+-- | Register as a slave node and request tasks from the master node. Blocks.
 work :: Backend -> IO ()
 work = startSlave

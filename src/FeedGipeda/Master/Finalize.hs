@@ -1,3 +1,10 @@
+{-| The meat of the master node: Calls @gipeda@ and optionally deploys the
+    website via @rsync@.
+
+    Upon deployment, repositories are mapped to URLs via specific policies
+    verified in @sshSubPathTestFailures@.
+-}
+
 module FeedGipeda.Master.Finalize
   ( regenerateAndDeploy
   ) where
@@ -48,6 +55,14 @@ executeIn cwd executable args = do
   return stdout
 
 
+{-| @regenerateAndDeploy gipeda rsyncPath repos repo@ updates the @site/@ sub
+    folder by calling @gipeda@ in @repo@s @projectDir@. That also updates
+    the @backlog.txt@, which will possibly kick off other benchmarks.
+
+    After the site has been regenerated, the changes are deployed via @rsync@
+    to @remoteDir@, if present. The sub directory to which the site is synced
+    follow a mapping which should satisfy the tests in @sshSubPathTestFailures@.
+-}
 regenerateAndDeploy :: FilePath -> Maybe String -> Set Repo -> Repo -> IO ()
 regenerateAndDeploy gipeda rsyncPath repos repo = do
   project <- Repo.projectDir repo

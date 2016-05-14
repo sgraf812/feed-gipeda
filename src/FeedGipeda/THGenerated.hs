@@ -1,5 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+{-| Contains TemplateHaskell stuff I don't want to recompile every time I make
+    changes to other files, a pre-compiled header, so to say. Don't know if that
+    even works.
+-}
+
 module FeedGipeda.THGenerated
   ( benchmarkClosure
   , stringDict

@@ -1,3 +1,7 @@
+{-| Defines the entry point of the @feed-gipeda@ executable and the command line
+    parsing associated with that.
+-}
+
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.List           (elemIndex)
@@ -64,6 +68,15 @@ parser = do
               <> help "Show log messages intended for debugging")
 
 
+{-|
+    Example usage:
+
+    [@feed-gipeda@] Enter watch mode (watch for changes to config and periodically re-fetch repositories); read config from the default location, act as both a master and a slave node"
+    [@feed-gipeda --dt=5@] Same as the above, but set the re-fetch interval from one hour to 5 seconds
+    [@feed-gipeda --one-shot@] Enter one-shot mode (don't watch for changes, don't refetch, exit when done)
+    [@feed-gipeda --one-shot --master=localhost:12345@] Dispatch one-shot work items on registered slave nodes, don't work on them in this process
+    [@feed-gipeda --rsync=deploymentDir/@] Watch mode, deploy changes via rsync to the local deploymentDir
+-}
 main :: IO ()
 main = Logging.withStdoutLogging $ do
   p <- parser

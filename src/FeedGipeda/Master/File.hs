@@ -1,3 +1,5 @@
+-- | Functions for file handling in the master node.
+
 module FeedGipeda.Master.File
   ( writeBenchmarkCSV
   , isBenchmarkCSV

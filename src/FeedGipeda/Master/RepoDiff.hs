@@ -1,3 +1,5 @@
+-- | Provides means to diff sets of repositories.
+
 module FeedGipeda.Master.RepoDiff
   ( RepoDiff (..)
   , compute

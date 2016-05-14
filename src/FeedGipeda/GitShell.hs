@@ -1,3 +1,7 @@
+{-| Functions for shelling out to @git@ to work with git repositories.
+-}
+
+
 module FeedGipeda.GitShell
   ( isRepositoryRoot
   , fetch
@@ -8,6 +12,7 @@ module FeedGipeda.GitShell
   , sync
   , SHA
   ) where
+
 
 import           Data.Char        (isSpace)
 import           Data.Maybe       (listToMaybe)
@@ -49,6 +54,9 @@ fetch path =
   callProcess "git" ["-C", path, "fetch", "--quiet"]
 
 
+{-| @sync repo@ tries to fetch updates from the remote @repo@ or creates a
+    mirror of @repo@ if there isn't already a local clone present.
+-}
 sync :: Repo -> IO ()
 sync repo = do
   path <- Repo.cloneDir repo

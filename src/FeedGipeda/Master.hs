@@ -1,14 +1,21 @@
-{-| Handles all the config file watching and repository updating.
-    Executes an IO action when a repository was (re-)fetched, also supplying
-    commits, for which there was no results file found in site/out/results.
+{-| The master node works as follows:
 
-    Repositories are re-fetched at a fixed rate. Existing clones are detected
-    and reused, so that restarting the daemon will not do unnecessary work.
+    1. Maintain updated local clones of a number of configured repositories
+    2. Ask @gipeda@ which of those repositories have commits that need to be benchmarked
+    3. Notify the caller for each (Repo, SHA) pair (to delegate work to slaves)
+    4. Call @gipeda@ when either the repository or some benchmark result file changed
+
+    If in @Watch@ mode (as opposed to @OneShot@ mode), the configuration file is
+    watched for updates to the actively watched repositories, as well as
+    fetches all currently watched repositories at a fixed interval. Existing
+    clones are detected and reused, so that restarting the daemon will not do
+    unnecessary work.
 -}
 
 module FeedGipeda.Master
   ( Paths (..)
   , OperationMode (..)
+  , NewCommitAction
   , checkForNewCommits
   ) where
 
@@ -47,8 +54,17 @@ import           System.FilePath            (equalFilePath, takeDirectory)
 import qualified System.FSNotify            as FS
 
 
+-- | Handler which will be called for commits @gipeda@ requests to benchmark.
 type NewCommitAction
-  = (String -> IO ()) -> String -> Repo -> SHA -> IO ()
+  = (String -> IO ())
+  -- ^ Continuation to call with the benchmark results
+  -> String
+  -- ^ The @benchmarkScript@ as determined when assembling the @gipeda.yaml@
+  -> Repo
+  -- ^ The repository of the commit to benchmark
+  -> SHA
+  -- ^ The commit to benchmark
+  -> IO ()
 
 
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
@@ -146,18 +162,27 @@ repoOfFileEvent cwd activeRepos fileEvents =
 
 data OperationMode
   = OneShot
-  | PeriodicRefresh NominalDiffTime
+  {-^ Don't watch the config file or repositories for updates, exit immediately
+      when there are no more commits to benchmark.
+  -}
+  | Watch NominalDiffTime
+  -- ^ Don't exit; watch config file and repositories for updates.
   deriving (Show, Eq)
 
 
+{-| Important file paths for the master node. -}
 data Paths
   = Paths
   { configFile :: FilePath
   , remoteDir  :: Maybe String
+  -- ^ A SSH/local directory where to @rsync@ website changes to.
   , gipeda     :: FilePath
   }
 
 
+{-| See the module docs. This function builds up the FRP network with primitives
+    from @reactive-banana@. No other module should be 'tainted' by that.
+-}
 checkForNewCommits
   :: Paths
   -> OperationMode
@@ -195,7 +220,7 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
       configFileChanges <-
         case mode of
           OneShot -> return initialConfig
-          PeriodicRefresh _ -> Banana.unionWith const initialConfig <$> watchFile (configFile paths)
+          Watch _ -> Banana.unionWith const initialConfig <$> watchFile (configFile paths)
 
       activeRepos <- Banana.filterJust <$> Banana.mapEventIO readConfigFileRepos configFileChanges
       activeReposB <- Banana.stepper Set.empty activeRepos
@@ -205,7 +230,7 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
       diffs <-
         case mode of
           OneShot -> return diffsWithoutRefresh
-          PeriodicRefresh dt -> do
+          Watch dt -> do
             ticks <- periodically dt
             return (Banana.unionWith const (RepoDiff.compute Set.empty <$> activeReposB <@ ticks) diffsWithoutRefresh)
 

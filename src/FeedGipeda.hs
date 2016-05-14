@@ -1,3 +1,7 @@
+{-| The API part of @feed-gipeda@. The console client is just a thin wrapper
+    around this.
+-}
+
 module FeedGipeda
   ( Endpoint (..)
   , feedGipeda
@@ -37,6 +41,7 @@ import           System.Exit                                        (exitSuccess
 import           System.FilePath                                    ((</>))
 
 
+-- | An IP endpoint, or rather some string and some integer delimited by a colon.
 data Endpoint
   = Endpoint
   { host :: String
@@ -49,6 +54,13 @@ remoteTable =
   THGenerated.__remoteTable initRemoteTable
 
 
+{-| The parameters correspond exactly to the command line parameters, to
+    you should read the @--help@ message for more thorough documentation.
+
+    @feedGipeda@ determines the appropriate mode of operation (e.g. watching or one-shot).
+    It also works as master or slave node, depending on which endpoints are given.
+    Lastly, @verbose@ will lead to more debug output.
+-}
 feedGipeda
   :: FilePath -> FilePath
   -> Bool -> Int -> Bool
@@ -113,4 +125,4 @@ feedGipeda
 
         liftIO $ if oneShot
           then Master.checkForNewCommits paths Master.OneShot onNewCommit
-          else Master.checkForNewCommits paths (Master.PeriodicRefresh (fromIntegral dt)) onNewCommit
+          else Master.checkForNewCommits paths (Master.Watch (fromIntegral dt)) onNewCommit

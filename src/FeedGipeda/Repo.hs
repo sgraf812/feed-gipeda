@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-{-| Provides domain functions about remote git repositories.
-    It also handles YAML parsing and @projectDir@ related stuff.
-    All-in-all, this is a little messy and should undergo a refactoring
-    if there should come any major changes to the code base.
+{-| Provides domain functions around remote git repositories.
+    It also exposes @projectDir@ related functions, e.g. mapping conceptual file
+    paths to concrete file paths.
 -}
 
 module FeedGipeda.Repo
@@ -56,6 +55,7 @@ hash =
   Hash.asWord64 . Hash.hash . show . uri
 
 
+{-| Used in @projectDir@ to disambiguate file paths. -}
 uniqueName :: Repo -> String
 uniqueName repo =
   shortName repo ++ "-" ++ (show . hash) repo
@@ -66,6 +66,7 @@ shortName repo =
   takeFileName (uriPath (unRepo repo))
 
 
+{-| Assigns each repository a unique local working directory. -}
 projectDir :: Repo -> IO FilePath
 projectDir repo = do
   cwd <- getCurrentDirectory
