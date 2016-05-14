@@ -31,7 +31,6 @@ import qualified FeedGipeda.Master                                  as Master
 import           FeedGipeda.Repo                                    (Repo)
 import qualified FeedGipeda.TaskQueue                               as TaskQueue
 import qualified FeedGipeda.THGenerated                             as THGenerated
-import qualified FeedGipeda.Worker                                  as Worker
 import           Network.URI                                        (parseURI)
 import           System.Directory                                   (getAppUserDataDirectory)
 import           System.Exit                                        (exitSuccess)

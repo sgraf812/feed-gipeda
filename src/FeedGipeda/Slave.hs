@@ -2,7 +2,7 @@
 -}
 
 
-module FeedGipeda.Worker
+module FeedGipeda.Slave
   ( benchmark
   ) where
 

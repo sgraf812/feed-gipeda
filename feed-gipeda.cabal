@@ -18,7 +18,7 @@ library
   other-modules:       FeedGipeda.GitShell
                      , FeedGipeda.Repo
                      , FeedGipeda.Master
-                     , FeedGipeda.Worker
+                     , FeedGipeda.Slave
                      , FeedGipeda.Gipeda
                      , FeedGipeda.Config
                      , FeedGipeda.THGenerated

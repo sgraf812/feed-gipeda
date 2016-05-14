@@ -13,12 +13,12 @@ import           Control.Distributed.Process.Closure (SerializableDict,
                                                       remotable)
 import           FeedGipeda.GitShell                 (SHA)
 import           FeedGipeda.Repo                     (Repo)
-import qualified FeedGipeda.Worker                   as Worker
+import qualified FeedGipeda.Slave                    as Slave
 
 
 benchmarkProcess :: (String, Repo, SHA) -> Process String
 benchmarkProcess (benchmarkScript, repo, sha) =
-  liftIO (Worker.benchmark benchmarkScript repo sha)
+  liftIO (Slave.benchmark benchmarkScript repo sha)
 remotable ['benchmarkProcess]
 
 
