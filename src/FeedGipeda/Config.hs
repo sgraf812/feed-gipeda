@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+{-| @feed-gipeda.yaml@ related stuff like decoding and syntax checking.
+-}
+
+
 module FeedGipeda.Config
   ( Config
   , empty
@@ -22,12 +26,16 @@ import           Network.URI            (parseURI)
 import           System.FilePath        (dropFileName, equalFilePath)
 
 
+{-| Represents a decoded config file. Has the appropriate @FromJSON@ config to
+    be deserializable from YAML.
+-}
 data Config
   = Config
   { repos :: Set Repo
   } deriving (Eq, Show)
 
 
+-- | A config with no repositories to watch.
 empty :: Config
 empty =
   Config Set.empty
@@ -47,6 +55,9 @@ instance FromJSON Config where
     fail "Object"
 
 
+{-| @decodeFile file@ @Either@ decodes a @Config@ from a YAML @file@
+    (such as @feed-gipeda.yaml@) or returns a parse error message.
+-}
 decodeFile :: FilePath -> IO (Either String Config)
 decodeFile file = fmap (left errorToString) (Yaml.decodeFileEither file)
   where
@@ -58,6 +69,9 @@ decodeFile file = fmap (left errorToString) (Yaml.decodeFileEither file)
         ]
 
 
+{-| Checks for syntax errors while reading a @Config@ from the supplied YAML
+    file.
+-}
 checkFile :: FilePath -> IO (Maybe String)
 checkFile file =
   fmap (either Just (const Nothing)) (decodeFile file)

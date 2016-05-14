@@ -1,9 +1,11 @@
+{-| @benchmark@ contains the logic to be executed on slave nodes.
+-}
+
+
 module FeedGipeda.Worker
   ( benchmark
   ) where
 
-{-| @benchmark@ contains the logic to be executed on slave nodes.
--}
 
 import           Control.Logging     as Logging
 import qualified Data.Text           as Text
