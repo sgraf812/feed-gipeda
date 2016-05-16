@@ -84,7 +84,7 @@ test-suite test
                      , tasty-hspec
                      , HUnit
                      , temporary >= 1.1
-                     , file-embed >= 0.10
+                     , file-embed >= 0.0.10
                      , exceptions
                      , process >= 1.2.3 && < 1.5
                      , directory < 1.3
