@@ -133,10 +133,11 @@ sshSubPathTestFailures =
 
 
 generateMapping :: FilePath -> Set Repo -> IO ()
-generateMapping file repos =
-  LBS.writeFile file
-    (Json.encode (Json.object (foldMap (\repo ->
-      [Text.pack (sshSubPath repo) .= Repo.uri repo]) repos)))
+generateMapping file =
+  LBS.writeFile file . Json.encode . Json.object . map sshMapping . Set.toList
+    where
+      sshMapping repo =
+        Text.pack (sshSubPath repo) .= Repo.uri repo
 
 
 parseSSHUri :: String -> (Maybe String, FilePath)
