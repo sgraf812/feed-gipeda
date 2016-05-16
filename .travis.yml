@@ -173,3 +173,6 @@ script:
       ;;
   esac
   set +ex
+
+after_failure:
+  cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log
