@@ -84,16 +84,16 @@ test-suite test
                      , tasty-hspec
                      , HUnit
                      , temporary >= 1.1
-                     , file-embed
+                     , file-embed >= 0.10
                      , exceptions
-                     , process >= 1.2.0.0 && < 1.5.0.0
-                     , directory >= 1.2.0.0 && < 1.3.0.0
-                     , filepath >= 1.4.0.0 && < 1.5.0.0
+                     , process >= 1.2.3 && < 1.5
+                     , directory < 1.3
+                     , filepath < 1.5
                      , managed
                      , bytestring >= 0.10.0.0
                      , transformers >= 0.2.0.0
-                     , fsnotify >= 0.2.1 && < 0.3.0
-                     , network-uri >= 2.6.0.0 && < 2.7.0.0
+                     , fsnotify >= 0.2 && < 0.3
+                     , network-uri < 2.7
 
 source-repository head
   type: git
