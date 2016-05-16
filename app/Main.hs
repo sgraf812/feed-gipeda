@@ -4,6 +4,7 @@
 
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
+import           Data.Functor
 import           Data.List           (elemIndex)
 import qualified FeedGipeda
 import           Options.Applicative

@@ -31,6 +31,7 @@ import           Control.Distributed.Process.ManagedProcess
 import           Control.Distributed.Process.Serializable
 import           Control.Monad                                      (forever)
 import           Data.Binary                                        (Binary)
+import           Data.Functor
 import           Data.Map                                           (Map)
 import qualified Data.Map                                           as Map
 import           Data.Maybe                                         (isNothing)

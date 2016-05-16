@@ -15,6 +15,7 @@ module FeedGipeda.Gipeda
 
 import           Control.Applicative (optional, (<|>))
 import           Data.Aeson          (withArray, withObject)
+import           Data.Functor
 import           Data.Maybe          (catMaybes, fromMaybe)
 import           Data.String         (fromString)
 import           Data.Yaml           (FromJSON (..), ToJSON (..), (.:), (.=))

@@ -15,6 +15,7 @@ module FeedGipeda.GitShell
 
 
 import           Data.Char        (isSpace)
+import           Data.Functor
 import           Data.Maybe       (listToMaybe)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set

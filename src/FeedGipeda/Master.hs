@@ -26,6 +26,7 @@ import           Control.Concurrent.MVar    (MVar, newEmptyMVar, putMVar,
 import           Control.Logging            as Logging
 import           Control.Monad              (forM_, forever, when)
 import           Control.Monad.IO.Class     (liftIO)
+import           Data.Functor 
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (fromMaybe, listToMaybe)

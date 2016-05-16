@@ -11,6 +11,7 @@ module FeedGipeda.Master.File
 
 
 import           Data.Char           (toLower)
+import           Data.Functor
 import           Data.List           (isSuffixOf)
 import           Data.Maybe          (listToMaybe)
 import           Data.Set            (Set)

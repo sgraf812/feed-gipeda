@@ -20,6 +20,7 @@ module FeedGipeda.Repo
 
 
 import           Data.Binary      (Binary (..))
+import           Data.Functor
 import qualified Data.Hash        as Hash
 import           Data.Maybe       (fromJust)
 import           Data.Set         (Set)

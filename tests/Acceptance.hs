@@ -13,6 +13,7 @@ import           Control.Monad           (filterM, unless, when, (<=<))
 import           Control.Monad.IO.Class  (MonadIO (..))
 import           Control.Monad.Managed   (Managed, managed, runManaged)
 import qualified Data.ByteString         as BS
+import           Data.Functor
 import           Data.List               (isInfixOf, isSuffixOf)
 import           Data.Maybe              (fromJust, isJust)
 import           Network.URI             (parseURI)
