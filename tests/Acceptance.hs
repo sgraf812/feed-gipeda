@@ -34,7 +34,6 @@ tests ::  TestTree
 tests = testGroup "Acceptance tests"
   [ testCase "has feed-gipeda in $PATH" $ do
       path <- findExecutable "feed-gipeda"
-      putStrLn "hi"
       assertBool "feed-gipeda should exist" (isJust path)
   , check
   , oneShot

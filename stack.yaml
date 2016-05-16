@@ -3,10 +3,12 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
+- distributed-process-0.5.5.1
 - distributed-process-async-0.2.3
 - distributed-process-client-server-0.1.3.2
 - distributed-process-extras-0.2.1.2
 - distributed-process-simplelocalnet-0.2.3.2
+- network-transport-tcp-0.4.2
 - reactive-banana-1.1.0.0
 - logging-3.0.4
 - file-embed-0.0.10
