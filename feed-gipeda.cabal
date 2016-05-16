@@ -11,6 +11,8 @@ copyright:           2015 Sebastian Graf
 category:            Development
 build-type:          Simple
 cabal-version:       >=1.10
+extra-source-files:    assets/default_index.html
+                     , README.md
 
 library
   hs-source-dirs:      src
