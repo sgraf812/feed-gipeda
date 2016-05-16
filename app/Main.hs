@@ -2,6 +2,7 @@
     parsing associated with that.
 -}
 
+import           Control.Applicative
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor

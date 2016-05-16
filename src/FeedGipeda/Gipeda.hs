@@ -13,7 +13,7 @@ module FeedGipeda.Gipeda
   ) where
 
 
-import           Control.Applicative (optional, (<|>))
+import           Control.Applicative
 import           Data.Aeson          (withArray, withObject)
 import           Data.Functor
 import           Data.Maybe          (catMaybes, fromMaybe)
