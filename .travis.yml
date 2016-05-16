@@ -37,9 +37,9 @@ matrix:
   #- env: BUILD=cabal GHCVER=7.4.2 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
   #  compiler: ": #GHC 7.4.2"
   #  addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  - env: BUILD=cabal GHCVER=7.6.3 CABALVER=1.18 HAPPYVER=1.19.5 ALEXVER=3.1.7
-    compiler: ": #GHC 7.6.3"
-    addons: {apt: {packages: [cabal-install-1.18,ghc-7.6.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal GHCVER=7.6.3 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
+  #  compiler: ": #GHC 7.6.3"
+  #  addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}} # doesn't work because of reactive-banana's cabal 1.18 restriction (and changing that to 1.18 doesn't help either, wtf)
   - env: BUILD=cabal GHCVER=7.8.4 CABALVER=1.18 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 7.8.4"
     addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
@@ -102,6 +102,7 @@ matrix:
   - env: BUILD=stack ARGS="--resolver nightly"
 
 before_install:
+- ifconfig # See if UDP multicast works
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC
 
