@@ -10,7 +10,7 @@ module FeedGipeda.Assets
 
 
 import           Data.ByteString (ByteString)
-import           Data.FileEmbed  (embedFile)
+import           Data.FileEmbed  (embedFile, makeRelativeToProject)
 
 
 {-| A default @index.html@ to use as the top-level index site, as long as
@@ -19,4 +19,4 @@ import           Data.FileEmbed  (embedFile)
 -}
 defaultIndexHtml :: ByteString
 defaultIndexHtml =
-  $(embedFile "assets/default_index.html")
+  $(makeRelativeToProject "assets/default_index.html" >>= embedFile)

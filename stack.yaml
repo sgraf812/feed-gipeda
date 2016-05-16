@@ -3,11 +3,11 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- argparser-0.3.4
 - distributed-process-async-0.2.3
 - distributed-process-client-server-0.1.3.2
 - distributed-process-extras-0.2.1.2
 - distributed-process-simplelocalnet-0.2.3.2
 - reactive-banana-1.1.0.0
 - logging-3.0.4
-resolver: lts-5.13
+- file-embed-0.0.10
+resolver: lts-5.16
