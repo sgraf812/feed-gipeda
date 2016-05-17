@@ -83,7 +83,7 @@ daemon = testGroup "daemon mode"
       (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) Nothing config
+      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) 3600 config
       spawnAssertNotExit daemon
       liftIO (threadDelay 5000000) -- ouch
       liftIO (BS.writeFile config Files.wellFormedConfig)
@@ -95,7 +95,7 @@ daemon = testGroup "daemon mode"
       liftIO (hPutStrLn handle ("- file://" ++ repo))
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) (Just 5) config
+      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) 5 config
       spawnAssertNotExit daemon
       liftIO (threadDelay 5000000)
       liftIO $ Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test")

@@ -7,14 +7,14 @@ import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor
 import           Data.List           (elemIndex)
-import qualified FeedGipeda
+import           FeedGipeda
 import           Options.Applicative
 import           System.Directory    (getAppUserDataDirectory)
 import           System.FilePath     ((</>))
 import           Text.Read           (readMaybe)
 
 
-endpoint :: ReadM FeedGipeda.Endpoint
+endpoint :: ReadM Endpoint
 endpoint = do
   s <- str
   case elemIndex ':' s of
@@ -22,8 +22,77 @@ endpoint = do
     Just idx -> do
       let (host, port') = splitAt idx s
       case readMaybe (drop 1 port') of
-        Just port -> return (FeedGipeda.Endpoint host port)
+        Just port -> return (Endpoint host port)
         Nothing -> readerError "Port was not integral"
+
+
+paths :: FilePath -> Parser Paths
+paths defaultConfig =
+  Paths
+    <$> option str
+          (long "gipeda"
+            <> value "gipeda"
+            <> metavar "FILEPATH"
+            <> help "Custom path to the gipeda executable")
+    <*> option str
+          (long "config"
+            <> value defaultConfig
+            <> metavar "FILEPATH"
+            <> help ("Path to the YAML file containing a list of watched repositories. Will be watched for changes. Defaults to " ++ defaultConfig ++ "."))
+
+
+cmd :: Parser Command
+cmd =
+  flag'
+    Check
+    (long "check"
+      <> help "Verify that the given config file is well-formed and exit")
+  <|>
+  Build
+    <$> option
+          (WatchForChanges . fromIntegral <$> auto)
+          (long "watch"
+            <> metavar "SECONDS"
+            <> value Once
+            <> help "Don't quit when done, watch the config file for changes and refetch watched repositories every SECONDS seconds and benchmark new commits.")
+
+
+deployment :: Parser Deployment
+deployment =
+  option
+    (Deploy <$> str)
+    (long "deploy-to"
+      <> metavar "SSH_PATH"
+      <> value NoDeployment
+      <> help "ssh or local path under which to deploy site/ folders with rsync")
+
+
+processRole :: Parser ProcessRole
+processRole =
+  impl
+    <$> optional (option endpoint
+          (long "master"
+            <> metavar "ENDPOINT"
+            <> help "Start in master mode, distributing work items. Identified via the given TCP endpoint (ipadress:portnumber)."))
+    <*> optional (option endpoint
+          (long "slave"
+            <> metavar "ENDPOINT"
+            <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber)."))
+  where
+    impl Nothing Nothing = Both (Endpoint "localhost" 1337) (Endpoint "localhost" 1338)
+    impl (Just ep) Nothing = Master ep
+    impl Nothing (Just ep) = Slave ep
+    impl (Just mep) (Just sep) = Both mep sep
+
+
+verbosity :: Parser Verbosity
+verbosity =
+  flag
+    NotVerbose
+    Verbose
+    (long "verbose"
+      <> short 'v'
+      <> help "Show log messages intended for debugging")
 
 
 parser :: IO (Parser (IO ()))
@@ -31,43 +100,11 @@ parser = do
   defaultConfig <- getAppUserDataDirectory ("feed-gipeda" </> "feed-gipeda.yaml")
   return $
     FeedGipeda.feedGipeda
-      <$> option str
-            (long "gipeda"
-              <> value "gipeda"
-              <> metavar "FILEPATH"
-              <> help "Custom path to the gipeda executable")
-      <*> option str
-            (long "config"
-              <> value defaultConfig
-              <> metavar "FILEPATH"
-              <> help ("Path to the YAML file containing a list of watched repositories. Will be watched for changes. Defaults to " ++ defaultConfig ++ "."))
-      <*> switch
-            (long "one-shot"
-              <> help "Fetch updated repositories only once and exit after all new commits have been handled.")
-      <*> option auto
-            (long "dt"
-              <> metavar "SECONDS"
-              <> value (60*60)
-              <> help "Fetch interval for all repos in seconds. Default to one hour.")
-      <*> switch
-            (long "check"
-              <> help "Verify that the given config file is well-formed and exit")
-      <*> optional (option str
-            (long "rsync"
-              <> metavar "SSH_PATH"
-              <> help "ssh path under which to deploy site/ folders with rsync"))
-      <*> optional (option endpoint
-            (long "master"
-              <> metavar "ENDPOINT"
-              <> help "Start in master mode, distributing work items. Identified via the given TCP endpoint (ipadress:portnumber)."))
-      <*> optional (option endpoint
-            (long "slave"
-              <> metavar "ENDPOINT"
-              <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber)."))
-      <*> switch
-            (long "verbose"
-              <> short 'v'
-              <> help "Show log messages intended for debugging")
+      <$> paths defaultConfig
+      <*> cmd
+      <*> deployment
+      <*> processRole
+      <*> verbosity
 
 
 {-|

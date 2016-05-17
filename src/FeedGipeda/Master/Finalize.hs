@@ -29,6 +29,7 @@ import           FeedGipeda.GitShell  (SHA)
 import qualified FeedGipeda.GitShell  as GitShell
 import           FeedGipeda.Repo      (Repo)
 import qualified FeedGipeda.Repo      as Repo
+import           FeedGipeda.Types     (Deployment (..))
 import           Network.URI          (URI, uriAuthority, uriPath, uriRegName,
                                        uriToString)
 import           System.Directory     (copyFile, createDirectoryIfMissing,
@@ -63,8 +64,8 @@ executeIn cwd executable args = do
     to @remoteDir@, if present. The sub directory to which the site is synced
     follow a mapping which should satisfy the tests in @sshSubPathTestFailures@.
 -}
-regenerateAndDeploy :: FilePath -> Maybe String -> Set Repo -> Repo -> IO ()
-regenerateAndDeploy gipeda rsyncPath repos repo = do
+regenerateAndDeploy :: FilePath -> Deployment -> Set Repo -> Repo -> IO ()
+regenerateAndDeploy gipeda deployment repos repo = do
   project <- Repo.projectDir repo
   Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
   clone <- Repo.cloneDir repo
@@ -73,7 +74,7 @@ regenerateAndDeploy gipeda rsyncPath repos repo = do
     then do
       saveSettingsIfNotExists repo
       executeIn (Just project) gipeda ["-j"]
-      rsyncSite repos repo rsyncPath
+      rsyncSite repos repo deployment
       return ()
     else
       Logging.log (Text.pack "There were no commits")
@@ -151,8 +152,9 @@ parseSSHUri sshUri =
         (Just (take (n' - 1) sshUri), drop n' sshUri)
 
 
-rsyncSite :: Set Repo -> Repo -> Maybe String -> IO ()
-rsyncSite repos repo = maybe (return ()) $ \remoteDir -> do
+rsyncSite :: Set Repo -> Repo -> Deployment -> IO ()
+rsyncSite repos repo NoDeployment = return ()
+rsyncSite repos repo (Deploy remoteDir) = do
   projectDir <- Repo.projectDir repo
   -- we need the trailing path separator, otherwise it will add a site
   -- sub directory.

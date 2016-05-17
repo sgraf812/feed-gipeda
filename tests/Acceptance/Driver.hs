@@ -25,15 +25,14 @@ data Args
   { check         :: Bool
   , config        :: FilePath
   , deploymentDir :: Maybe FilePath
-  , oneShot       :: Bool
-  , dt            :: Maybe Int
+  , watch         :: Maybe Int
   , masterPort    :: Maybe Int
   } deriving (Show, Eq)
 
 
 defaultConfig :: FilePath -> Args
 defaultConfig config =
-  Args False config Nothing False Nothing Nothing
+  Args False config Nothing Nothing Nothing
 
 
 withCheckInTmpDir :: FilePath -> Managed (FilePath, ExitCode, String, String)
@@ -47,17 +46,16 @@ withOneShotInTmpDir :: Maybe FilePath -> FilePath -> Managed (FilePath, ExitCode
 withOneShotInTmpDir deploymentDir config = do
   (path, fork) <- withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
-    , oneShot = True
     }
   (exitCode, stdout, stderr) <- liftIO fork
   return (path, exitCode, stdout, stderr)
 
 
-withDaemonInTmpDir :: Maybe FilePath -> Maybe Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
+withDaemonInTmpDir :: Maybe FilePath -> Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
 withDaemonInTmpDir deploymentDir dt config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
-    , dt = dt
+    , watch = Just dt
     }
 
 
@@ -84,9 +82,8 @@ withExecuteInTmpDir Args{..} = do
     args = execWriter $ do
       tell ["--config", config]
       when check (tell ["--check"])
-      when oneShot (tell ["--one-shot"])
-      whenJust deploymentDir $ \r -> tell ["--rsync", r]
-      whenJust dt $ \dt -> tell ["--dt", show dt]
+      whenJust deploymentDir $ \r -> tell ["--deploy-to", r]
+      whenJust watch $ \dt -> tell ["--watch", show dt]
       whenJust masterPort $ \p -> tell ["--master", "localhost:" ++ show p]
       return ()
 

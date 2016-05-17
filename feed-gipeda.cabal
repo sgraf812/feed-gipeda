@@ -18,6 +18,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     FeedGipeda
   other-modules:       FeedGipeda.GitShell
+                     , FeedGipeda.Assets
                      , FeedGipeda.Repo
                      , FeedGipeda.Master
                      , FeedGipeda.Slave
@@ -25,7 +26,7 @@ library
                      , FeedGipeda.Config
                      , FeedGipeda.THGenerated
                      , FeedGipeda.TaskQueue
-                     , FeedGipeda.Assets
+                     , FeedGipeda.Types
                      , FeedGipeda.Master.Finalize
                      , FeedGipeda.Master.File
                      , FeedGipeda.Master.RepoDiff

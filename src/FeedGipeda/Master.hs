@@ -13,9 +13,7 @@
 -}
 
 module FeedGipeda.Master
-  ( Paths (..)
-  , OperationMode (..)
-  , NewCommitAction
+  ( NewCommitAction
   , checkForNewCommits
   ) where
 
@@ -26,7 +24,7 @@ import           Control.Concurrent.MVar    (MVar, newEmptyMVar, putMVar,
 import           Control.Logging            as Logging
 import           Control.Monad              (forM_, forever, when)
 import           Control.Monad.IO.Class     (liftIO)
-import           Data.Functor 
+import           Data.Functor
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (fromMaybe, listToMaybe)
@@ -46,6 +44,7 @@ import           FeedGipeda.Master.RepoDiff (RepoDiff)
 import qualified FeedGipeda.Master.RepoDiff as RepoDiff
 import           FeedGipeda.Repo            (Repo)
 import qualified FeedGipeda.Repo            as Repo
+import           FeedGipeda.Types
 import           Reactive.Banana            ((<@), (<@>))
 import qualified Reactive.Banana            as Banana
 import qualified Reactive.Banana.Frameworks as Banana
@@ -75,9 +74,9 @@ notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
     onNewCommit (File.writeBenchmarkCSV repo commit) benchmarkScript repo commit
 
 
-finalizeRepos :: Paths -> Set Repo -> Set Repo -> IO ()
-finalizeRepos paths activeRepos repos = forM_ repos $ \repo -> do
-  Finalize.regenerateAndDeploy (gipeda paths) (remoteDir paths) activeRepos repo
+finalizeRepos :: Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
+finalizeRepos paths deployment activeRepos repos = forM_ repos $ \repo -> do
+  Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
   File.writeBacklog repo
 
 
@@ -161,35 +160,16 @@ repoOfFileEvent cwd activeRepos fileEvents =
     (File.repoOfPath cwd <$> activeRepos <@> (FS.eventPath <$> fileEvents))
 
 
-data OperationMode
-  = OneShot
-  {-^ Don't watch the config file or repositories for updates, exit immediately
-      when there are no more commits to benchmark.
-  -}
-  | Watch NominalDiffTime
-  -- ^ Don't exit; watch config file and repositories for updates.
-  deriving (Show, Eq)
-
-
-{-| Important file paths for the master node. -}
-data Paths
-  = Paths
-  { configFile :: FilePath
-  , remoteDir  :: Maybe String
-  -- ^ A SSH/local directory where to @rsync@ website changes to.
-  , gipeda     :: FilePath
-  }
-
-
 {-| See the module docs. This function builds up the FRP network with primitives
     from @reactive-banana@. No other module should be 'tainted' by that.
 -}
 checkForNewCommits
   :: Paths
-  -> OperationMode
+  -> Deployment
+  -> BuildMode
   -> NewCommitAction
   -> IO ()
-checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
+checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> do
   cwd <- getCurrentDirectory
   exit <- newEmptyMVar
   start <- newEmptyMVar
@@ -220,8 +200,8 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
       -- Source: Events resulting from watching the config file
       configFileChanges <-
         case mode of
-          OneShot -> return initialConfig
-          Watch _ -> Banana.unionWith const initialConfig <$> watchFile (configFile paths)
+          Once -> return initialConfig
+          WatchForChanges _ -> Banana.unionWith const initialConfig <$> watchFile (configFile paths)
 
       activeRepos <- Banana.filterJust <$> Banana.mapEventIO readConfigFileRepos configFileChanges
       activeReposB <- Banana.stepper Set.empty activeRepos
@@ -230,8 +210,8 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
       -- Source: When in PeriodicRefresh mode, occasionally mark all repos dirty
       diffs <-
         case mode of
-          OneShot -> return diffsWithoutRefresh
-          Watch dt -> do
+          Once -> return diffsWithoutRefresh
+          WatchForChanges dt -> do
             ticks <- periodically dt
             return (Banana.unionWith const (RepoDiff.compute Set.empty <$> activeReposB <@ ticks) diffsWithoutRefresh)
 
@@ -252,7 +232,7 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
 
       -- Sink: produce the appropriate backlog and deploy
       let reposToFinish = Banana.unionWith Set.union fetchedRepos (Set.singleton <$> benchmarkedRepos)
-      Banana.reactimate (finalizeRepos paths <$> activeReposB <@> reposToFinish)
+      Banana.reactimate (finalizeRepos paths deployment <$> activeReposB <@> reposToFinish)
 
       -- Source: Backlog changes
       backlogs <- watchTree cwd (File.isBacklog cwd)
@@ -260,7 +240,7 @@ checkForNewCommits paths mode onNewCommit = FS.withManager $ \mgr -> do
 
       -- Sink: Backlog changes kick off workers, resp. the new commit action
       backlogCommits <- Banana.mapEventIO (\repo -> (,) repo <$> File.readBacklog repo) backlogRepos
-      let doExit = when (mode == OneShot) (putMVar exit ())
+      let doExit = when (mode == Once) (putMVar exit ())
       dedupedCommits <- dedupCommitsAndNotifyWhenEmpty doExit backlogCommits
       Banana.reactimate (notifyOnNewCommitsInBacklog onNewCommit <$> dedupedCommits)
 
