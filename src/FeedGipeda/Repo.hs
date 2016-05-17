@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 {-| Provides domain functions around remote git repositories.
     It also exposes @projectDir@ related functions, e.g. mapping conceptual file
@@ -25,6 +26,7 @@ import qualified Data.Hash        as Hash
 import           Data.Maybe       (fromJust)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
+import           Data.Typeable    (Typeable)
 import           Data.Word        (Word64)
 import           Network.URI      (URI, parseURI, uriPath, uriToString)
 import           System.Directory (getCurrentDirectory)
@@ -33,7 +35,7 @@ import           System.FilePath  (takeFileName, (</>))
 
 newtype Repo = Repo
   { unRepo :: URI
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Typeable)
 
 
 instance Binary Repo where
