@@ -158,7 +158,7 @@ script:
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **check**"
       ;;
     cabal)
-      cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
+      cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES || cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log
 
       ORIGDIR=$(pwd)
       for dir in $PACKAGES
@@ -167,10 +167,10 @@ script:
         cabal check || [ "$CABALVER" == "1.16" ]
         cabal sdist
         SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz && \
-          (cd dist && cabal install --force-reinstalls "$SRC_TGZ" || cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log)
+          (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
         cd $ORIGDIR
       done
       ;;
   esac
   set +ex
-- 
+-
