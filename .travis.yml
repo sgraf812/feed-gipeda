@@ -167,12 +167,10 @@ script:
         cabal check || [ "$CABALVER" == "1.16" ]
         cabal sdist
         SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz && \
-          (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
+          (cd dist && cabal install --force-reinstalls "$SRC_TGZ" || cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log)
         cd $ORIGDIR
       done
       ;;
   esac
   set +ex
-
-after_failure:
-- cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log
+- 
