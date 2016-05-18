@@ -160,7 +160,6 @@ script:
     cabal)
       if cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
       then
-        ;
       else
         cat /home/travis/.cabal/logs/feed-gipeda-0.1.0.0.log
       fi
