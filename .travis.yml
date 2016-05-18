@@ -156,7 +156,7 @@ script:
   cabal install cloben
   git clone https://github.com/nomeata/gipeda
   git -C gipeda reset --hard f4c7404
-  cabal install gipeda/
+  cabal install gipeda/gipeda.cabal
   case "$BUILD" in
     stack)
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
