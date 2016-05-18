@@ -92,9 +92,8 @@ readConfigFileRepos evt =
 
 
 accumDiff
-  :: Banana.MonadMoment moment
-  => Banana.Event (Set Repo)
-  -> moment (Banana.Event RepoDiff)
+  :: Banana.Event (Set Repo)
+  -> Banana.MomentIO (Banana.Event RepoDiff)
 accumDiff repos =
   fst <$> Banana.mapAccum Set.empty ((\new old -> (RepoDiff.compute old new, new)) <$> repos)
 
