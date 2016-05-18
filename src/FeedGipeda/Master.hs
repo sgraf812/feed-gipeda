@@ -70,14 +70,15 @@ type NewCommitAction
 notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
 notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
   benchmarkScript <- Gipeda.determineBenchmarkScript repo
-  forM_ backlog $ \commit ->
+  forM_ (Set.toList backlog) $ \commit ->
     onNewCommit (File.writeBenchmarkCSV repo commit) benchmarkScript repo commit
 
 
 finalizeRepos :: Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
-finalizeRepos paths deployment activeRepos repos = forM_ repos $ \repo -> do
-  Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
-  File.writeBacklog repo
+finalizeRepos paths deployment activeRepos repos =
+  forM_ (Set.toList repos) $ \repo -> do
+    Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
+    File.writeBacklog repo
 
 
 readConfigFileRepos :: FS.Event -> IO (Maybe (Set Repo))
@@ -216,7 +217,7 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
             return (Banana.unionWith const (RepoDiff.compute Set.empty <$> activeReposB <@ ticks) diffsWithoutRefresh)
 
       -- Fetch every added ('dirty') repository, delay until fetch is complete
-      -- TODO: parallelize and/or get rid of mapM_ somehow
+      -- TODO: parallelize and/or get rid of forM_ somehow
       fetchedRepos <-
         Banana.mapEventIO
           (\added -> do
