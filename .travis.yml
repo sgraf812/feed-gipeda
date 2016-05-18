@@ -153,15 +153,21 @@ install:
 script:
 - |
   set -ex
-  cabal install cloben
-  git clone https://github.com/nomeata/gipeda
-  git -C gipeda reset --hard f4c7404
-  cabal install gipeda/gipeda.cabal
   case "$BUILD" in
     stack)
+      stack install cloben
+      git clone https://github.com/nomeata/gipeda
+      git -C gipeda reset --hard f4c7404
+      cd gipeda/; stack install; cd ..
+
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
       ;;
     cabal)
+      cabal install cloben
+      git clone https://github.com/nomeata/gipeda
+      git -C gipeda reset --hard f4c7404
+      cabal install gipeda/gipeda.cabal
+      
       cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 --jobs=1 $CABALARGS $PACKAGES
 
       ORIGDIR=$(pwd)
