@@ -51,7 +51,6 @@ check = testGroup "check"
       liftIO $ assertNotEqual "exited successfully" ExitSuccess exitCode
       liftIO $ assertBool "no YAML error" ("YAML" `isInfixOf` stderr)
   , testCase "well-formed file exits successfully" $ runManaged $ do
-      configFile <- Files.withWellFormedConfig
       (_, exitCode, stdout, stderr) <-
         Files.withWellFormedConfig >>= Driver.withCheckInTmpDir
       assertExitSuccessfully exitCode

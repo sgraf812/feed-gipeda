@@ -220,7 +220,7 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
       fetchedRepos <-
         Banana.mapEventIO
           (\added -> do
-            forM_ added $ \repo -> do
+            forM_ (Set.toList added) $ \repo -> do
               Logging.log (Text.pack ("Syncing " ++ Repo.shortName repo))
               GitShell.sync repo
             return added)

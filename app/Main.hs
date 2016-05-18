@@ -30,15 +30,15 @@ paths :: FilePath -> Parser Paths
 paths defaultConfig =
   Paths
     <$> option str
-          (long "gipeda"
-            <> value "gipeda"
-            <> metavar "FILEPATH"
-            <> help "Custom path to the gipeda executable")
-    <*> option str
           (long "config"
             <> value defaultConfig
             <> metavar "FILEPATH"
             <> help ("Path to the YAML file containing a list of watched repositories. Will be watched for changes. Defaults to " ++ defaultConfig ++ "."))
+    <*> option str
+          (long "gipeda"
+            <> value "gipeda"
+            <> metavar "FILEPATH"
+            <> help "Custom path to the gipeda executable")
 
 
 cmd :: Parser Command
