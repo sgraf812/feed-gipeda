@@ -97,6 +97,10 @@ test-suite test
                      , transformers >= 0.2.0.0
                      , fsnotify >= 0.2 && < 0.3
                      , network-uri < 2.7
+                     , conduit
+                     , conduit-extra >= 1.1.2
+                     , text
+                     , async
 
 source-repository head
   type: git

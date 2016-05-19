@@ -6,18 +6,29 @@ module Acceptance.Driver
   , withOneShotInTmpDir
   , withDaemonInTmpDir
   , withMasterInTmpDir
-  , slave
+  , withSlave
   ) where
 
 
+import           Control.Exception          (bracket)
 import           Control.Monad              (when)
-import           Control.Monad.Managed      (Managed, liftIO, managed)
+import           Control.Monad.IO.Class     (MonadIO, liftIO)
+import           Control.Monad.Managed      (Managed, managed)
 import           Control.Monad.Trans.Writer (Writer, execWriter, tell)
+import           Data.Conduit               (Source, ($=), (=$=))
+import qualified Data.Conduit.List          as CL
+import           Data.Conduit.Process       (ClosedStream (..), CreateProcess,
+                                             InputSource, OutputSink,
+                                             StreamingProcessHandle,
+                                             readCreateProcessWithExitCode,
+                                             streamingProcess,
+                                             streamingProcessHandleRaw,
+                                             terminateProcess)
+import           Data.Conduit.Text          (decode, utf8)
+import           Data.Text                  (unpack)
 import           System.Exit                (ExitCode)
 import           System.IO.Temp             (withSystemTempDirectory)
-import           System.Process             (cwd, proc,
-                                             readCreateProcessWithExitCode,
-                                             showCommandForUser)
+import           System.Process             (cwd, proc, showCommandForUser)
 
 
 data Args
@@ -35,23 +46,28 @@ defaultConfig config =
   Args False config Nothing Nothing Nothing
 
 
-withCheckInTmpDir :: FilePath -> Managed (FilePath, ExitCode, String, String)
-withCheckInTmpDir config = do
-  (path, fork) <- withExecuteInTmpDir (defaultConfig config) { check = True }
-  (exitCode, stdout, stderr) <- liftIO fork
-  return (path, exitCode, stdout, stderr)
+withCheckInTmpDir
+  :: FilePath
+  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+withCheckInTmpDir config =
+  withExecuteInTmpDir (defaultConfig config) { check = True }
 
 
-withOneShotInTmpDir :: Maybe FilePath -> FilePath -> Managed (FilePath, ExitCode, String, String)
-withOneShotInTmpDir deploymentDir config = do
-  (path, fork) <- withExecuteInTmpDir (defaultConfig config)
+withOneShotInTmpDir
+  :: Maybe FilePath
+  -> FilePath
+  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+withOneShotInTmpDir deploymentDir config =
+  withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
     }
-  (exitCode, stdout, stderr) <- liftIO fork
-  return (path, exitCode, stdout, stderr)
 
 
-withDaemonInTmpDir :: Maybe FilePath -> Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
+withDaemonInTmpDir
+  :: Maybe FilePath
+  -> Int
+  -> FilePath
+  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
 withDaemonInTmpDir deploymentDir dt config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
@@ -59,19 +75,37 @@ withDaemonInTmpDir deploymentDir dt config =
     }
 
 
-withMasterInTmpDir :: Int -> FilePath -> Managed (FilePath, IO (ExitCode, String, String))
+withMasterInTmpDir
+  :: Int
+  -> FilePath
+  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
 withMasterInTmpDir port config =
   withExecuteInTmpDir (defaultConfig config)
     { masterPort = Just port
     }
 
 
-slave :: Int -> IO (ExitCode, String, String)
-slave port =
-  readCreateProcessWithExitCode (proc "feed-gipeda" ["--slave", "localhost:" ++ show port]) ""
+withSlave :: Int -> Managed (Source IO String, Source IO String, StreamingProcessHandle)
+withSlave port =
+  withProcess (proc "feed-gipeda" ["--slave", "localhost:" ++ show port])
 
 
-withExecuteInTmpDir :: Args -> Managed (FilePath, IO (ExitCode, String, String))
+withProcess :: CreateProcess -> Managed (Source IO String, Source IO String, StreamingProcessHandle)
+withProcess cp = do
+  (ClosedStream, stdout, stderr, handle) <- managed (bracket acquire release)
+  return (stdout $= decodeString, stderr $= decodeString, handle)
+    where
+      acquire =
+        streamingProcess cp
+      release (_, _, _, h) =
+        terminateProcess (streamingProcessHandleRaw h)
+      decodeString =
+        decode utf8 =$= CL.map unpack
+
+
+withExecuteInTmpDir
+  :: Args
+  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
 withExecuteInTmpDir Args{..} = do
   let
     whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
@@ -88,4 +122,5 @@ withExecuteInTmpDir Args{..} = do
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")
-  return (path, liftIO $ readCreateProcessWithExitCode (proc "feed-gipeda" args) { cwd = Just path } "")
+  (stdout, stderr, handle) <- withProcess (proc "feed-gipeda" args) { cwd = Just path }
+  return (path, stdout, stderr, handle)

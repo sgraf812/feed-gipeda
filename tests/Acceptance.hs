@@ -3,32 +3,43 @@ module Acceptance
   ) where
 
 
-import qualified Acceptance.Driver       as Driver
-import qualified Acceptance.Files        as Files
-import           Control.Concurrent      (ThreadId, forkIO, killThread,
-                                          myThreadId, threadDelay)
-import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import           Control.Exception       (bracket, catch, throwTo)
-import           Control.Monad           (filterM, unless, when, (<=<))
-import           Control.Monad.IO.Class  (MonadIO (..))
-import           Control.Monad.Managed   (Managed, managed, runManaged)
-import qualified Data.ByteString         as BS
+import qualified Acceptance.Driver        as Driver
+import qualified Acceptance.Files         as Files
+import           Control.Concurrent       (ThreadId, forkIO, killThread,
+                                           myThreadId, threadDelay)
+import           Control.Concurrent.Async (link, race_, withAsync)
+import           Control.Concurrent.MVar  (newEmptyMVar, putMVar, takeMVar)
+import           Control.Exception        (SomeException, bracket, catch,
+                                           throwTo)
+import           Control.Monad            (filterM, mfilter, unless, when,
+                                           (<=<))
+import           Control.Monad.IO.Class   (MonadIO (..))
+import           Control.Monad.Managed    (Managed, managed, runManaged)
+import qualified Data.ByteString          as BS
+import           Data.Conduit             (Source, ($$))
+import qualified Data.Conduit.List        as CL
+import           Data.Conduit.Process     (StreamingProcessHandle,
+                                           waitForStreamingProcess)
 import           Data.Functor
-import           Data.List               (isInfixOf, isSuffixOf)
-import           Data.Maybe              (fromJust, isJust)
-import           Network.URI             (parseURI)
-import           System.Directory        (doesFileExist, findExecutable,
-                                          getDirectoryContents, makeAbsolute)
-import           System.Exit             (ExitCode (..))
-import           System.FilePath         (takeDirectory, takeExtension, (</>))
-import qualified System.FSNotify         as FS
-import           System.IO               (hClose, hPutStrLn)
-import           System.IO.Temp          (withSystemTempDirectory,
-                                          withSystemTempFile)
-import           Test.HUnit.Lang         (HUnitFailure)
+import           Data.List                (isInfixOf, isSuffixOf)
+import           Data.Maybe               (fromJust, isJust)
+import           Data.Monoid              (Any (..))
+import           Network.URI              (parseURI)
+import           System.Directory         (doesFileExist, findExecutable,
+                                           getDirectoryContents, makeAbsolute)
+import           System.Exit              (ExitCode (..))
+import           System.FilePath          (takeDirectory, takeExtension, (</>))
+import qualified System.FSNotify          as FS
+import           System.IO                (hClose, hPutStrLn)
+import           System.IO.Temp           (withSystemTempDirectory,
+                                           withSystemTempFile)
 import           Test.Tasty
-import           Test.Tasty.HUnit        (Assertion, assertBool, assertEqual,
-                                          assertFailure, testCase)
+import           Test.Tasty.HUnit         (Assertion, assertBool, assertEqual,
+                                           assertFailure, testCase)
+
+
+debugTests :: Bool
+debugTests = True -- cringe
 
 
 tests ::  TestTree
@@ -46,31 +57,31 @@ tests = testGroup "Acceptance tests"
 check :: TestTree
 check = testGroup "check"
   [ testCase "malformed file exits with error" $ runManaged $ do
-      (_, exitCode, _, stderr) <-
+      (_, _, stderr, handle) <-
         Files.withMalformedConfig >>= Driver.withCheckInTmpDir
+      exitCode <- waitForStreamingProcess handle
       liftIO $ assertNotEqual "exited successfully" ExitSuccess exitCode
-      liftIO $ assertBool "no YAML error" ("YAML" `isInfixOf` stderr)
+      Any hasError <- liftIO $ stderr $$ CL.foldMap (Any . isInfixOf "YAML")
+      liftIO $ assertBool "no YAML error" hasError
   , testCase "well-formed file exits successfully" $ runManaged $ do
-      (_, exitCode, stdout, stderr) <-
+      (_, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withCheckInTmpDir
-      assertExitSuccessfully exitCode
-      assertNoErrors stderr
-      assertNoOutput stdout
+      assertNormalExit handle stdout stderr
   ]
 
 
 oneShot :: TestTree
 oneShot = testGroup "one-shot mode"
   [ testCase "watching a single repo produces site/ files" $ runManaged $ do
-      (path, exitCode, stdout, stderr) <-
+      (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir Nothing
-      assertNormalExit exitCode stderr
+      assertNormalExit handle stdout stderr
       assertSiteFolderComplete (path </> "benchmark-test-6085726404018277061" </> "site")
   , testCase "watching a single repo with deployment" $ runManaged $ do
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, exitCode, stdout, stderr) <-
+      (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir (Just deploymentDir)
-      assertNormalExit exitCode stderr
+      assertNormalExit handle stdout stderr
       assertSiteFolderComplete (deploymentDir </> "sgraf812" </> "benchmark-test")
   -- Test with multiple repos in config? There shouldn't be any new code paths.
   ]
@@ -82,37 +93,36 @@ daemon = testGroup "daemon mode"
       (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) 3600 config
-      spawnAssertNotExit daemon
-      liftIO (threadDelay 5000000) -- ouch
-      liftIO (BS.writeFile config Files.wellFormedConfig)
-      assertCsvFilesChangeWithin 300 deploymentDir
+      (path, stdout, stderr, handle) <-
+        Driver.withDaemonInTmpDir (Just deploymentDir) 3600 config
+      assertReactsToChange handle stdout stderr deploymentDir
+        (BS.writeFile config Files.wellFormedConfig)
   , testCase "adding commits to a repo under watch should trigger benchmarks" $ runManaged $ do
-      repo <- Files.withInitGitRepo
-      (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
-      liftIO (hPutStrLn handle "repositories:")
-      liftIO (hPutStrLn handle ("- file://" ++ repo))
-      liftIO (hClose handle)
-      deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, daemon) <- Driver.withDaemonInTmpDir (Just deploymentDir) 5 config
-      spawnAssertNotExit daemon
       liftIO (threadDelay 5000000)
-      liftIO $ Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test")
-      assertCsvFilesChangeWithin 300 deploymentDir
+      repo <- Files.withInitGitRepo
+      (config, h) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
+      liftIO (hPutStrLn h "repositories:")
+      liftIO (hPutStrLn h ("- file://" ++ repo))
+      liftIO (hClose h)
+      deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
+      (path, stdout, stderr, handle) <-
+        Driver.withDaemonInTmpDir (Just deploymentDir) 5 config
+      assertReactsToChange handle stdout stderr deploymentDir
+        (Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test"))
   ]
 
 
 parallelization :: TestTree
 parallelization = testGroup "parallelization"
   [ testCase "does not benchmark in master mode" $ runManaged $ do
-      (path, master) <-
+      (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
-      spawnAssertNotExit master
+      withAssertNotExit handle
       assertCsvFilesDontChangeWithin 100 path
   , testCase "can distribute work on slave nodes" $ runManaged $ do
-      (path, master) <-
+      (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
-      spawnAssertNotExit master
+      withAssertNotExit handle
       spawnSlave 12346
       spawnSlave 12347
       spawnSlave 12348
@@ -120,20 +130,52 @@ parallelization = testGroup "parallelization"
       assertCsvFilesChangeWithin 300 path
   ]
   where
-    spawnSlave port =
-      spawnAssertNotExit (Driver.slave port)
+    spawnSlave port = do
+      (_, _, h) <- Driver.withSlave port
+      withAssertNotExit h
 
 
+assertReactsToChange
+  :: MonadIO io
+  => StreamingProcessHandle
+  -> Source IO String
+  -> Source IO String
+  -> String
+  -> IO ()
+  -> io ()
+assertReactsToChange handle stdout stderr deploymentDir changeAction = liftIO $ runManaged $ do
+  withAssertNotExit handle
+  withAssertNoOutput stderr "stderr"
+  liftIO (threadDelay 5000000) -- ouch
+  liftIO changeAction
+  assertCsvFilesChangeWithin 300 deploymentDir
 
-spawnAssertNotExit :: IO (ExitCode, String, String) -> Managed ThreadId
-spawnAssertNotExit proc = do
-  pid <- liftIO myThreadId
-  let forkAndKill action = managed $ bracket (forkIO action) killThread
-  forkAndKill $ do
-    (_, stdout, stderr) <- proc
-    catch -- That catch doesn't seem to work, don't know why.
-      (assertFailure "daemon should not exit")
-      (\e -> throwTo pid (e :: HUnitFailure))
+
+withAssertNotExit :: StreamingProcessHandle -> Managed ()
+withAssertNotExit handle = do
+  asy <- managed $ withAsync $ do
+    waitForStreamingProcess handle
+    assertFailure "must not exit"
+  liftIO $ link asy
+
+
+withAssertNoOutput :: Source IO String -> String -> Managed ()
+withAssertNoOutput content name = do
+  asy <- managed $ withAsync $ do
+    hd <- content $$ CL.head
+    assertEqual
+      ("should not write any output to " ++ name)
+      Nothing
+      (mfilter (not . null) hd)
+  liftIO $ link asy
+
+
+assertNormalExit :: StreamingProcessHandle -> Source IO String -> Source IO String -> Managed ()
+assertNormalExit handle stdout stderr = do
+  withAssertNoOutput stderr "stderr"
+  liftIO $ do
+    exitCode <- waitForStreamingProcess handle
+    assertEqual "should exit successfully" ExitSuccess exitCode
 
 
 assertCsvFilesWithin :: MonadIO io => (Bool -> Bool) -> Int -> FilePath -> io ()
@@ -178,27 +220,6 @@ filesInDirWithExt :: String -> FilePath -> IO [FilePath]
 filesInDirWithExt ext dir =
   map (dir </>) . filter ((== ext) . takeExtension) <$> getDirectoryContents dir
 
-
-assertNormalExit :: MonadIO io => ExitCode -> String -> io ()
-assertNormalExit exitCode stderr = do
-  assertExitSuccessfully exitCode
-  assertNoErrors stderr
-  -- assertNoOutput stdout -- TODO: Uncomment when the backlog.txt stuff gets into gipeda
-
-
-assertExitSuccessfully :: MonadIO io => ExitCode -> io ()
-assertExitSuccessfully exitCode =
-  liftIO $ assertEqual "should exit successfully" ExitSuccess exitCode
-
-
-assertNoErrors :: MonadIO io => String -> io ()
-assertNoErrors stderr =
-  liftIO $ assertEqual "should not write any errors" "" stderr
-
-
-assertNoOutput :: MonadIO io => String -> io ()
-assertNoOutput stdout =
-  liftIO $ assertEqual "should not write any output" "" stdout
 
 
 assertNotEqual
