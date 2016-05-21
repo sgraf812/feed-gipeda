@@ -163,12 +163,10 @@ script:
       stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
       ;;
     cabal)
-      cabal install cloben
-      git clone https://github.com/nomeata/gipeda
-      git -C gipeda reset --hard f4c7404
-      cabal install gipeda/gipeda.cabal
-      
-      cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 --jobs=1 $CABALARGS $PACKAGES
+      # Deactivated building the test suite in cabal builds for now.
+      # Cabal <= 1.18 tries to run the tests afterwards, which doesn't turn out
+      # well. As a test environment, stack should suffice.
+      cabal install --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
 
       ORIGDIR=$(pwd)
       for dir in $PACKAGES
