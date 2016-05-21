@@ -163,15 +163,17 @@ withAssertNoOutput :: Source IO String -> String -> Managed ()
 withAssertNoOutput content name = do
   asy <- managed $ withAsync $ do
     hd <- content $$ CL.head
-    assertEqual
-      ("should not write any output to " ++ name)
-      Nothing
-      (mfilter (not . null) hd)
+    case mfilter (not . null) hd of
+      Nothing -> return ()
+      Just sth ->
+        assertFailure
+          ("should not write any output to " ++ name ++ ". Got: " ++ sth)
   liftIO $ link asy
 
 
 assertNormalExit :: StreamingProcessHandle -> Source IO String -> Source IO String -> Managed ()
 assertNormalExit handle stdout stderr = do
+  withAssertNoOutput stdout "stdout"
   withAssertNoOutput stderr "stderr"
   liftIO $ do
     exitCode <- waitForStreamingProcess handle
