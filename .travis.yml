@@ -160,7 +160,7 @@ script:
       git -C gipeda reset --hard f4c7404
       cd gipeda/; stack install; cd ..
 
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **/*check*"
       ;;
     cabal)
       # Deactivated building the test suite in cabal builds for now.
