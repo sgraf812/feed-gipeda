@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Acceptance
   ( tests
   ) where
@@ -9,21 +11,25 @@ import           Control.Concurrent       (ThreadId, forkIO, killThread,
                                            myThreadId, threadDelay)
 import           Control.Concurrent.Async (link, race_, withAsync)
 import           Control.Concurrent.MVar  (newEmptyMVar, putMVar, takeMVar)
-import           Control.Exception        (SomeException, bracket, catch,
-                                           throwTo)
+import           Control.Exception        (AsyncException, SomeException,
+                                           bracket, catch, handle, throwTo)
 import           Control.Monad            (filterM, mfilter, unless, when,
                                            (<=<))
 import           Control.Monad.IO.Class   (MonadIO (..))
 import           Control.Monad.Managed    (Managed, managed, runManaged)
+import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as BS
-import           Data.Conduit             (Source, ($$))
-import qualified Data.Conduit.List        as CL
+import           Data.Conduit             (Source, await, ($$), ($=), (=$))
+import qualified Data.Conduit.Binary      as CB
+import qualified Data.Conduit.List        as CLc
 import           Data.Conduit.Process     (StreamingProcessHandle,
                                            waitForStreamingProcess)
 import           Data.Functor
 import           Data.List                (isInfixOf, isSuffixOf)
-import           Data.Maybe               (fromJust, isJust)
+import           Data.Maybe               (fromJust, fromMaybe, isJust)
 import           Data.Monoid              (Any (..))
+import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
 import           Network.URI              (parseURI)
 import           System.Directory         (doesFileExist, findExecutable,
                                            getDirectoryContents, makeAbsolute)
@@ -61,8 +67,9 @@ check = testGroup "check"
         Files.withMalformedConfig >>= Driver.withCheckInTmpDir
       exitCode <- waitForStreamingProcess handle
       liftIO $ assertNotEqual "exited successfully" ExitSuccess exitCode
-      Any hasError <- liftIO $ stderr $$ CL.foldMap (Any . isInfixOf "YAML")
-      liftIO $ assertBool "no YAML error" hasError
+      liftIO $ stderr $= CB.lines $$ do
+        line <- await
+        maybe (return ()) (liftIO . assertBool "no YAML error" . not . BS.isInfixOf "YAML") line
   , testCase "well-formed file exits successfully" $ runManaged $ do
       (_, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withCheckInTmpDir
@@ -138,8 +145,8 @@ parallelization = testGroup "parallelization"
 assertReactsToChange
   :: MonadIO io
   => StreamingProcessHandle
-  -> Source IO String
-  -> Source IO String
+  -> Source IO ByteString
+  -> Source IO ByteString
   -> String
   -> IO ()
   -> io ()
@@ -151,27 +158,40 @@ assertReactsToChange handle stdout stderr deploymentDir changeAction = liftIO $ 
   assertCsvFilesChangeWithin 300 deploymentDir
 
 
+catchAsyncException :: IO () -> IO ()
+catchAsyncException =
+  handle handler
+    where
+      handler :: AsyncException -> IO ()
+      handler e = return ()
+
+
 withAssertNotExit :: StreamingProcessHandle -> Managed ()
 withAssertNotExit handle = do
-  asy <- managed $ withAsync $ do
+  asy <- managed $ withAsync $ catchAsyncException $ do
     waitForStreamingProcess handle
     assertFailure "must not exit"
   liftIO $ link asy
 
 
-withAssertNoOutput :: Source IO String -> String -> Managed ()
+withAssertNoOutput :: Source IO ByteString -> String -> Managed ()
 withAssertNoOutput content name = do
-  asy <- managed $ withAsync $ do
-    hd <- content $$ CL.head
-    case mfilter (not . null) hd of
-      Nothing -> return ()
-      Just sth ->
-        assertFailure
-          ("should not write any output to " ++ name ++ ". Got: " ++ sth)
+  asy <- managed $ withAsync $ catchAsyncException $ content $= CB.lines $$ do
+      line <- await
+      liftIO$print line
+      case mfilter (not . BS.null) line of
+        Nothing -> return ()
+        Just sth ->
+          liftIO $ assertFailure $
+            "should not write any output to " ++ name ++ ". Got: " ++ Text.unpack (Text.decodeUtf8 sth)
   liftIO $ link asy
 
 
-assertNormalExit :: StreamingProcessHandle -> Source IO String -> Source IO String -> Managed ()
+assertNormalExit
+  :: StreamingProcessHandle
+  -> Source IO ByteString
+  -> Source IO ByteString
+  -> Managed ()
 assertNormalExit handle stdout stderr = do
   withAssertNoOutput stdout "stdout"
   withAssertNoOutput stderr "stderr"

@@ -15,6 +15,7 @@ import           Control.Monad              (when)
 import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Managed      (Managed, managed)
 import           Control.Monad.Trans.Writer (Writer, execWriter, tell)
+import           Data.ByteString            (ByteString)
 import           Data.Conduit               (Source, ($=), (=$=))
 import qualified Data.Conduit.List          as CL
 import           Data.Conduit.Process       (ClosedStream (..), CreateProcess,
@@ -24,7 +25,6 @@ import           Data.Conduit.Process       (ClosedStream (..), CreateProcess,
                                              streamingProcess,
                                              streamingProcessHandleRaw,
                                              terminateProcess)
-import           Data.Conduit.Text          (decode, utf8)
 import           Data.Text                  (unpack)
 import           System.Exit                (ExitCode)
 import           System.IO.Temp             (withSystemTempDirectory)
@@ -48,7 +48,7 @@ defaultConfig config =
 
 withCheckInTmpDir
   :: FilePath
-  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withCheckInTmpDir config =
   withExecuteInTmpDir (defaultConfig config) { check = True }
 
@@ -56,7 +56,7 @@ withCheckInTmpDir config =
 withOneShotInTmpDir
   :: Maybe FilePath
   -> FilePath
-  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withOneShotInTmpDir deploymentDir config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
@@ -67,7 +67,7 @@ withDaemonInTmpDir
   :: Maybe FilePath
   -> Int
   -> FilePath
-  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withDaemonInTmpDir deploymentDir dt config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
@@ -78,34 +78,32 @@ withDaemonInTmpDir deploymentDir dt config =
 withMasterInTmpDir
   :: Int
   -> FilePath
-  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withMasterInTmpDir port config =
   withExecuteInTmpDir (defaultConfig config)
     { masterPort = Just port
     }
 
 
-withSlave :: Int -> Managed (Source IO String, Source IO String, StreamingProcessHandle)
+withSlave :: Int -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withSlave port =
   withProcess (proc "feed-gipeda" ["--slave", "localhost:" ++ show port])
 
 
-withProcess :: CreateProcess -> Managed (Source IO String, Source IO String, StreamingProcessHandle)
+withProcess :: CreateProcess -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withProcess cp = do
   (ClosedStream, stdout, stderr, handle) <- managed (bracket acquire release)
-  return (stdout $= decodeString, stderr $= decodeString, handle)
+  return (stdout, stderr, handle)
     where
       acquire =
         streamingProcess cp
       release (_, _, _, h) =
         terminateProcess (streamingProcessHandleRaw h)
-      decodeString =
-        decode utf8 =$= CL.map unpack
 
 
 withExecuteInTmpDir
   :: Args
-  -> Managed (FilePath, Source IO String, Source IO String, StreamingProcessHandle)
+  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withExecuteInTmpDir Args{..} = do
   let
     whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
