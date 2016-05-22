@@ -39,8 +39,10 @@ isRepositoryRoot path = do
 
 
 mirror :: Repo -> FilePath -> IO ()
-mirror repo path =
-  callProcess "git" ["clone", "--mirror", "--quiet", Repo.uri repo, path]
+mirror repo path = do
+  (_, _, _)  <- readProcessWithExitCode
+    "git" ["clone", "--mirror", "--quiet", Repo.uri repo, path] ""
+  return ()
 
 
 remoteRepo :: FilePath -> IO Repo

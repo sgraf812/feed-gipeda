@@ -105,7 +105,7 @@ daemon = testGroup "daemon mode"
       assertReactsToChange handle stdout stderr deploymentDir
         (BS.writeFile config Files.wellFormedConfig)
   , testCase "adding commits to a repo under watch should trigger benchmarks" $ runManaged $ do
-      liftIO (threadDelay 5000000)
+      liftIO (threadDelay 10000000) -- terminateProcess doesn't release the TCP ports, so we have to wait for the OS to catch up
       repo <- Files.withInitGitRepo
       (config, h) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
       liftIO (hPutStrLn h "repositories:")
@@ -134,7 +134,7 @@ parallelization = testGroup "parallelization"
       spawnSlave 12347
       spawnSlave 12348
       spawnSlave 12349
-      assertCsvFilesChangeWithin 300 path
+      assertCsvFilesChangeWithin 100 path
   ]
   where
     spawnSlave port = do
@@ -155,7 +155,7 @@ assertReactsToChange handle stdout stderr deploymentDir changeAction = liftIO $ 
   withAssertNoOutput stderr "stderr"
   liftIO (threadDelay 5000000) -- ouch
   liftIO changeAction
-  assertCsvFilesChangeWithin 300 deploymentDir
+  assertCsvFilesChangeWithin 100 deploymentDir
 
 
 catchAsyncException :: IO () -> IO ()
@@ -170,6 +170,8 @@ withAssertNotExit :: StreamingProcessHandle -> Managed ()
 withAssertNotExit handle = do
   asy <- managed $ withAsync $ catchAsyncException $ do
     waitForStreamingProcess handle
+    threadDelay 50 -- So that failures due to stdout/stderr have precedence
+    threadDelay 50
     assertFailure "must not exit"
   liftIO $ link asy
 
@@ -178,7 +180,6 @@ withAssertNoOutput :: Source IO ByteString -> String -> Managed ()
 withAssertNoOutput content name = do
   asy <- managed $ withAsync $ catchAsyncException $ content $= CB.lines $$ do
       line <- await
-      liftIO$print line
       case mfilter (not . BS.null) line of
         Nothing -> return ()
         Just sth ->
@@ -197,6 +198,8 @@ assertNormalExit handle stdout stderr = do
   withAssertNoOutput stderr "stderr"
   liftIO $ do
     exitCode <- waitForStreamingProcess handle
+    threadDelay 50 -- So that failures due to stdout/stderr have precedence
+    threadDelay 50
     assertEqual "should exit successfully" ExitSuccess exitCode
 
 

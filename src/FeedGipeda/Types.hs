@@ -1,3 +1,7 @@
+{-| The types for configuring @feedGipeda@. Correspond to the different modes
+    of operation that are possible, but in a type-safe way.
+-}
+
 module FeedGipeda.Types where
 
 

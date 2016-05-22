@@ -24,7 +24,8 @@ import           Data.Conduit.Process       (ClosedStream (..), CreateProcess,
                                              readCreateProcessWithExitCode,
                                              streamingProcess,
                                              streamingProcessHandleRaw,
-                                             terminateProcess)
+                                             terminateProcess,
+                                             waitForStreamingProcess)
 import           Data.Text                  (unpack)
 import           System.Exit                (ExitCode)
 import           System.IO.Temp             (withSystemTempDirectory)

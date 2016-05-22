@@ -76,6 +76,7 @@ test-suite test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      tests
   main-is:             test.hs
+  ghc-options:         -threaded
   other-modules:       Acceptance
                      , Acceptance.Files
                      , Acceptance.Driver
