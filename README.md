@@ -1,4 +1,4 @@
-# feed-gipeda [![Build Status](https://travis-ci.org/sgraf812/feed-gipeda.svg?branch=master)](https://travis-ci.org/sgraf812/feed-gipeda)
+# feed-gipeda [![Build Status](https://travis-ci.org/sgraf812/feed-gipeda.svg?branch=master)](https://travis-ci.org/sgraf812/feed-gipeda) [![Hackage](https://img.shields.io/hackage/v/feed-gipeda.svg?flat=true)](https://hackage.haskell.org/package/feed-gipeda)
 
 A kitchen-sink tool to run [gipeda](https://hackage.haskell.org/package/gipeda) on a list of repositories after having run a benchmark script on each (repo, commit) pair that is yet to be benchmarked.
 
