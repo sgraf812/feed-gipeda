@@ -19,8 +19,10 @@ module FeedGipeda.Master
 
 
 import           Control.Concurrent         (forkIO, threadDelay)
-import           Control.Concurrent.MVar    (MVar, newEmptyMVar, putMVar,
-                                             readMVar)
+import           Control.Concurrent.Event   (Event)
+import qualified Control.Concurrent.Event   as Event
+import           Control.Concurrent.Lock    (Lock)
+import qualified Control.Concurrent.Lock    as Lock
 import           Control.Logging            as Logging
 import           Control.Monad              (forM_, forever, when)
 import           Control.Monad.IO.Class     (liftIO)
@@ -74,9 +76,9 @@ notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
     onNewCommit (File.writeBenchmarkCSV repo commit) benchmarkScript repo commit
 
 
-finalizeRepos :: Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
-finalizeRepos paths deployment activeRepos repos =
-  forM_ (Set.toList repos) $ \repo -> do
+finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
+finalizeRepos lock paths deployment activeRepos repos =
+  Lock.with lock $ forM_ (Set.toList repos) $ \repo -> do
     Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
     File.writeBacklog repo
 
@@ -142,10 +144,10 @@ periodically dt = do
   return event
 
 
-singleShot :: MVar () -> Banana.MomentIO (Banana.Event ())
-singleShot mvar = do
+singleShot :: Event -> Banana.MomentIO (Banana.Event ())
+singleShot evt = do
   (event, fire) <- Banana.newEvent
-  liftIO $ forkIO $ readMVar mvar >>= fire
+  liftIO $ forkIO $ Event.wait evt >>= fire
   return event
 
 
@@ -171,8 +173,8 @@ checkForNewCommits
   -> IO ()
 checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> do
   cwd <- getCurrentDirectory
-  exit <- newEmptyMVar
-  start <- newEmptyMVar
+  exit <- Event.new
+  start <- Event.new
 
   let
     watchFile :: FilePath -> Banana.MomentIO (Banana.Event FS.Event)
@@ -232,7 +234,8 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
 
       -- Sink: produce the appropriate backlog and deploy
       let reposToFinish = Banana.unionWith Set.union fetchedRepos (Set.singleton <$> benchmarkedRepos)
-      Banana.reactimate (finalizeRepos paths deployment <$> activeReposB <@> reposToFinish)
+      finalizeLock <- liftIO Lock.new
+      Banana.reactimate (finalizeRepos finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
 
       -- Source: Backlog changes
       backlogs <- watchTree cwd (File.isBacklog cwd)
@@ -240,11 +243,11 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
 
       -- Sink: Backlog changes kick off workers, resp. the new commit action
       backlogCommits <- Banana.mapEventIO (\repo -> (,) repo <$> File.readBacklog repo) backlogRepos
-      let doExit = when (mode == Once) (putMVar exit ())
+      let doExit = when (mode == Once) (Event.set exit)
       dedupedCommits <- dedupCommitsAndNotifyWhenEmpty doExit backlogCommits
       Banana.reactimate (notifyOnNewCommitsInBacklog onNewCommit <$> dedupedCommits)
 
   network <- Banana.compile networkDescription
   Banana.actuate network
-  putMVar start ()
-  readMVar exit
+  Event.set start
+  Event.wait exit
