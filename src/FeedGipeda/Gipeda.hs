@@ -91,7 +91,7 @@ data BenchmarkSettings = BenchmarkSettings
   {-^ The benchmarks are displayed in groups; all benchmarks that have the same
       string here are grouped under this title. Defaults to @""@.
   -}
-  , threshold       :: Maybe Int
+  , threshold       :: Maybe Double
   {-^ Any change by a percentage greater than this number is flagged as a
       regression resp. improvement; anything below this number is considered to
       be a boring result, and not highlighted separately.
