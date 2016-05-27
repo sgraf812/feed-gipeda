@@ -72,7 +72,7 @@ regenerateAndDeploy gipeda deployment repos repo = do
   first <- GitShell.firstCommit clone
   if isJust first
     then do
-      saveSettingsIfNotExists repo
+      saveSettings repo
       executeIn (Just project) gipeda ["-j"]
       rsyncSite repos repo deployment
       return ()
@@ -80,12 +80,11 @@ regenerateAndDeploy gipeda deployment repos repo = do
       Logging.log (Text.pack "There were no commits")
 
 
-saveSettingsIfNotExists :: Repo -> IO ()
-saveSettingsIfNotExists repo = do
+saveSettings :: Repo -> IO ()
+saveSettings repo = do
   settingsFile <- Repo.settingsFile repo
   settings <- Gipeda.settingsForRepo repo
-  exists <- doesFileExist settingsFile
-  unless exists (Yaml.encodeFile settingsFile settings)
+  Yaml.encodeFile settingsFile settings
 
 
 type SSHSubPathPolicy
