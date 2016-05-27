@@ -78,9 +78,10 @@ notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
 
 finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
 finalizeRepos lock paths deployment activeRepos repos =
-  Lock.with lock $ forM_ (Set.toList repos) $ \repo -> do
+  forM_ (Set.toList repos) $ \repo -> Lock.with lock $ do
+    backlog <- File.generateBacklog repo
     Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
-    File.writeBacklog repo
+    File.writeBacklog repo backlog
 
 
 readConfigFileRepos :: FS.Event -> IO (Maybe (Set Repo))

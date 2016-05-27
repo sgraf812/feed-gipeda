@@ -3,6 +3,7 @@
 module FeedGipeda.Master.File
   ( writeBenchmarkCSV
   , isBenchmarkCSV
+  , generateBacklog
   , writeBacklog
   , readBacklog
   , isBacklog
@@ -29,13 +30,12 @@ import           System.FilePath     (dropFileName, makeRelative, normalise,
 
 
 -- Until this is done by gipeda, we have to also produce the backlog on our own.
-writeBacklog :: Repo -> IO ()
-writeBacklog repo = do
+generateBacklog :: Repo -> IO (Set SHA)
+generateBacklog repo = do
   projectDir <- Repo.projectDir repo
   path <- Repo.cloneDir repo
-  backlog <- Repo.backlogFile repo
   hasClone <- GitShell.isRepositoryRoot path
-  unfinished <- if not hasClone -- This should never be true, actually
+  if not hasClone -- This should never be true, actually
     then return Set.empty
     else do
       allCommits <- GitShell.allCommits path
@@ -43,7 +43,12 @@ writeBacklog repo = do
       createDirectoryIfMissing True resultsDir
       alreadyHandledCommits <- Set.fromList . map takeBaseName <$> getDirectoryContents resultsDir
       return (Set.difference allCommits alreadyHandledCommits)
-  writeFile backlog (unlines (Set.toList unfinished))
+
+
+writeBacklog :: Repo -> Set SHA -> IO ()
+writeBacklog repo backlog = do
+  backlogFile <- Repo.backlogFile repo
+  writeFile backlogFile (unlines (Set.toList backlog))
 
 
 readBacklog :: Repo -> IO (Set SHA)
