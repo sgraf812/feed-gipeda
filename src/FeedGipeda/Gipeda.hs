@@ -188,15 +188,6 @@ settingsForRepo repo = do
     revisionInfo =
       printf "<a href=\"%s/commit/{{rev}}>View Diff</a>" (Repo.uri repo)
 
-    warnings :: BenchmarkSettings
-    warnings =
-      (benchmark "build/warnings")
-        { smallerIsBetter = Just False
-        , group = Just "Build"
-        , type_ = Just "small integral"
-        , important = Just False
-        }
-
     settings :: Yaml.Value -> Yaml.Parser GipedaSettings
     settings (Yaml.Object obj) =
       GipedaSettings
@@ -208,7 +199,7 @@ settingsForRepo repo = do
         <*> "interestingTags" ?? "*"
         <*> "interestingBranches" ?? "*"
         <*> "benchmarkScript" ?? "cloben"
-        <*> ((++ [warnings]) <$> "benchmarks" ?? [])
+        <*> "benchmarks" ?? []
         where key ?? def = obj .: key <|> pure def
     settings _ = settings (Yaml.object []) -- This should fill in some defaults nonetheless
 
