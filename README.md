@@ -2,7 +2,7 @@
 
 A kitchen-sink tool to run [gipeda](https://hackage.haskell.org/package/gipeda) on a list of repositories after having run a benchmark script on each (repo, commit) pair that is yet to be benchmarked.
 
-This will take all the necessary steps to update and deploy a `gipeda`-based site.
+This will take all the necessary steps to update and deploy a `gipeda`-based site. Think Travis CI for benchmarks.
 
 Use this when you host a variety of repositories and want to display performance data about them. Although the defaults are biased towards Haskell projects using `cabal`/`stack`, the script to run on each new commit can be configured.
 
