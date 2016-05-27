@@ -193,7 +193,7 @@ settingsForRepo repo = do
       GipedaSettings
         <$> "title" ?? Repo.shortName repo
         <*> "revisionInfo" ?? printf "<a href=\"%s/commit/{{rev}}\">View Diff</a>" (Repo.uri repo)
-        <*> "diffLink" ?? "{{rev}}{{base}}" -- TODO
+        <*> "diffLink" ?? printf "%s/compare/{{base}}...{{rev}}" (Repo.uri repo)
         <*> "limitRecent" ?? 20
         <*> "start" ?? fromMaybe "HEAD" firstCommit -- "HEAD" doesn't really work, but better than crashing?! We shouldn't execute gipeda on an empty repository after all
         <*> "interestingTags" ?? "*"
