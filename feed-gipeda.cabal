@@ -1,14 +1,25 @@
 name:                feed-gipeda
 version:             0.1.0.0
 synopsis:            Simple project template from stack
-description:         Please see README.md
+description:
+  A service for easy handling of multiple repositories with <https://hackage.haskell.org/package/gipeda gipeda>.
+  .
+  See @--help@ for usage. Example invocation for benchmarking the whole of the @Pipes@ library:
+  .
+  @
+  $ cat > feed-gipeda.yaml
+  repositories:
+  - https://github.com/Gabriel439/Haskell-Pipes-Library
+  ^D
+  $ feed-gipeda --config=./feed-gipeda.yaml --deploy-to=./website
+  @
 homepage:            http://github.com/sgraf812/feed-gipeda#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Sebastian Graf
 maintainer:          sgraf1337@gmail.com
 copyright:           2015 Sebastian Graf
-category:            Development
+category:            Benchmarking
 build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:    assets/default_index.html
