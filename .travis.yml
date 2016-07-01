@@ -164,9 +164,15 @@ script:
   set -ex
   case "$BUILD" in
     stack)
-      stack install cloben-0.1.0.1 gipeda-0.3.0.1
+      if [ `uname` = "Darwin" ]
+      then
+        # Installing gitlib is a pain on OS X because of text-icu, so no testing here.
+        stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps
+      else
+        stack install cloben-0.1.0.2 gipeda-0.3.0.1
 
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **/*check*"
+        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **/*check*"
+      fi
       ;;
     cabal)
       # Deactivated building the test suite in cabal builds for now.
