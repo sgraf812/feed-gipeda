@@ -9,7 +9,7 @@
 ### END INIT INFO
 
 
-SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600"
+SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=\$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600"
 RUNAS=root
 
 PGIDFILE=/var/run/feed-gipeda-master.pgid
@@ -21,8 +21,9 @@ start() {
     return 1
   fi
   echo 'Starting service…' >&2
-  local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"
+  local CMD="($SCRIPT) &> \"$LOGFILE\" & echo \$!"
   local PID=$(su -c "$CMD" $RUNAS)
+  echo $PID
   ps -p $PID -o "%r" --no-header | xargs > "$PGIDFILE" # xargs for trimming
   echo 'Service started' >&2
 }
