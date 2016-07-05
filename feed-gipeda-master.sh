@@ -23,7 +23,6 @@ start() {
   echo 'Starting service…' >&2
   local CMD="($SCRIPT) &> \"$LOGFILE\" & echo \$!"
   local PID=$(su -c "$CMD" $RUNAS)
-  echo $PID
   ps -p $PID -o "%r" --no-header | xargs > "$PGIDFILE" # xargs for trimming
   echo 'Service started' >&2
 }
