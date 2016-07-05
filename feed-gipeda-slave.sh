@@ -1,19 +1,19 @@
 #!/bin/bash
 ### BEGIN INIT INFO
-# Provides:          feed-gipeda
+# Provides:          feed-gipeda-slave
 # Required-Start:    $remote_fs $network $named $time $syslog
 # Required-Stop:     $remote_fs $network $named $time $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Description:       Starts feed-gipeda in hourly watch mode, deploying to /www/
+# Description:       Starts a slave node for feed-gipeda, awaiting benchmark jobs from a master node.
 ### END INIT INFO
 
 
-SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=$PATH:/root/.local/bin feed-gipeda --deploy-to=/www/ --watch=3600"
+SCRIPT="PATH=$PATH:/root/.local/bin feed-gipeda --slave=localhost:1338"
 RUNAS=root
 
-PIDFILE=/var/run/feed-gipeda.pid
-LOGFILE=/var/log/feed-gipeda.log
+PIDFILE=/var/run/feed-gipeda-slave.pid
+LOGFILE=/var/log/feed-gipeda-slave.log
 
 start() {
   if [ -f /var/run/$PIDNAME ] && kill -0 $(cat /var/run/$PIDNAME); then
@@ -36,7 +36,7 @@ stop() {
   echo 'Service stopped' >&2
 }
 
-install() {
+uninstall() {
   echo -n "Are you sure you want to uninstall this service? That cannot be undone. [yes|No] "
   local SURE
   read SURE
@@ -44,7 +44,7 @@ install() {
     stop
     rm -f "$PIDFILE"
     echo "Notice: log file will not be removed: '$LOGFILE'" >&2
-    update-rc.d -f feed-gipeda remove
+    update-rc.d -f feed-gipeda-slave remove
     rm -fv "$0"
   fi
 }
@@ -66,4 +66,3 @@ case "$1" in
   *)
     echo "Usage: $0 {start|stop|restart|uninstall}"
 esac
-
