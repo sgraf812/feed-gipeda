@@ -5,14 +5,14 @@
 # Required-Stop:     $remote_fs $network $named $time $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Description:       Starts a master node of feed-gipeda in hourly watch mode, deploying to /www/
+# Description:       Starts a master node of feed-gipeda in hourly watch mode, deploying to /var/www/html/, the default nginx location.
 ### END INIT INFO
 
 
-SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/www/ --watch=3600"
+SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600"
 RUNAS=root
 
-PIDFILE=/var/run/feed-gipeda-master.pid
+PGIDFILE=/var/run/feed-gipeda-master.pgid
 LOGFILE=/var/log/feed-gipeda-master.log
 
 start() {
@@ -22,17 +22,18 @@ start() {
   fi
   echo 'Starting service…' >&2
   local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"
-  su -c "$CMD" $RUNAS > "$PIDFILE"
+  local PID=$(su -c "$CMD" $RUNAS)
+  ps -p $PID -o "%r" --no-header | xargs > "$PGIDFILE" # xargs for trimming
   echo 'Service started' >&2
 }
 
 stop() {
-  if [ ! -f "$PIDFILE" ] || ! kill -0 $(cat "$PIDFILE"); then
+  if [ ! -f "$PGIDFILE" ] || ! kill -0 -- -$(cat "$PGIDFILE"); then
     echo 'Service not running' >&2
     return 1
   fi
   echo 'Stopping service…' >&2
-  kill -15 $(cat "$PIDFILE") && rm -f "$PIDFILE"
+  kill -- -$(cat "$PGIDFILE") && rm -f "$PGIDFILE"
   echo 'Service stopped' >&2
 }
 
@@ -42,7 +43,7 @@ uninstall() {
   read SURE
   if [ "$SURE" = "yes" ]; then
     stop
-    rm -f "$PIDFILE"
+    rm -f "$PGIDFILE"
     echo "Notice: log file will not be removed: '$LOGFILE'" >&2
     update-rc.d -f feed-gipeda-master remove
     rm -fv "$0"
