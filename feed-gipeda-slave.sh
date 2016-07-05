@@ -12,7 +12,7 @@
 SCRIPT="PATH=$PATH:/root/.local/bin feed-gipeda --slave=localhost:1338"
 RUNAS=root
 
-PGIDFILE=/var/run/feed-gipeda-slave.gpid
+PGIDFILE=/var/run/feed-gipeda-slave.pgid
 LOGFILE=/var/log/feed-gipeda-slave.log
 
 start() {
@@ -23,7 +23,7 @@ start() {
   echo 'Starting service…' >&2
   local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"
   local PID=$(su -c "$CMD" $RUNAS)
-  ps -p $PID -o "%r" --no-header > "$PGIDFILE"
+  ps -p $PID -o "%r" --no-header | xargs > "$PGIDFILE" # xargs for trimming
   echo 'Service started' >&2
 }
 
@@ -33,7 +33,7 @@ stop() {
     return 1
   fi
   echo 'Stopping service…' >&2
-  kill -TERM -- -$(cat "$PGIDFILE") && rm -f "$PGIDFILE"
+  kill -- -$(cat "$PGIDFILE") && rm -f "$PGIDFILE"
   echo 'Service stopped' >&2
 }
 
@@ -67,4 +67,3 @@ case "$1" in
   *)
     echo "Usage: $0 {start|stop|restart|uninstall}"
 esac
-
