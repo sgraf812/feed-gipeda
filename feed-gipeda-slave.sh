@@ -12,7 +12,7 @@
 SCRIPT="PATH=$PATH:/root/.local/bin feed-gipeda --slave=localhost:1338"
 RUNAS=root
 
-PIDFILE=/var/run/feed-gipeda-slave.pid
+PGIDFILE=/var/run/feed-gipeda-slave.gpid
 LOGFILE=/var/log/feed-gipeda-slave.log
 
 start() {
@@ -22,17 +22,18 @@ start() {
   fi
   echo 'Starting service…' >&2
   local CMD="$SCRIPT &> \"$LOGFILE\" & echo \$!"
-  su -c "$CMD" $RUNAS > "$PIDFILE"
+  local PID=$(su -c "$CMD" $RUNAS)
+  ps -p $PID -o "%r" --no-header > "$PGIDFILE"
   echo 'Service started' >&2
 }
 
 stop() {
-  if [ ! -f "$PIDFILE" ] || ! kill -0 $(cat "$PIDFILE"); then
+  if [ ! -f "$PGIDFILE" ] || ! kill -0 -- -$(cat "$PGIDFILE"); then
     echo 'Service not running' >&2
     return 1
   fi
   echo 'Stopping service…' >&2
-  kill -15 $(cat "$PIDFILE") && rm -f "$PIDFILE"
+  kill -TERM -- -$(cat "$PGIDFILE") && rm -f "$PGIDFILE"
   echo 'Service stopped' >&2
 }
 
@@ -42,7 +43,7 @@ uninstall() {
   read SURE
   if [ "$SURE" = "yes" ]; then
     stop
-    rm -f "$PIDFILE"
+    rm -f "$PGIDFILE"
     echo "Notice: log file will not be removed: '$LOGFILE'" >&2
     update-rc.d -f feed-gipeda-slave remove
     rm -fv "$0"
@@ -66,3 +67,4 @@ case "$1" in
   *)
     echo "Usage: $0 {start|stop|restart|uninstall}"
 esac
+
