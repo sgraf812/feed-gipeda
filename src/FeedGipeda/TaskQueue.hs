@@ -43,6 +43,7 @@ import           Data.Sequence                                      (Seq,
 import qualified Data.Sequence                                      as Seq
 import           Data.Set                                           (Set)
 import qualified Data.Set                                           as Set
+import           Data.Time                                          (NominalDiffTime)
 import           Data.Typeable                                      (Typeable)
 import           GHC.Generics                                       (Generic)
 
@@ -76,24 +77,28 @@ instance Binary SlaveListChanged
 
 data QueueState a
   = QueueState
-  { slaves :: Map NodeId (Maybe MonitorRef)
-  , active :: Map MonitorRef (NodeId, Async a, CallRef a, Task a)
-  , onHold :: Seq (CallRef a, Task a)
+  { slaves  :: Map NodeId (Maybe MonitorRef)
+  , active  :: Map MonitorRef (NodeId, Async a, CallRef (Maybe a), Task a)
+  , onHold  :: Seq (CallRef (Maybe a), Task a)
+  , timeout :: NominalDiffTime
   }
 
 
-initialQueueState :: QueueState a
+initialQueueState :: NominalDiffTime -> QueueState a
 initialQueueState =
   QueueState Map.empty Map.empty Seq.empty
 
 
--- | Spawn the task queue on the local node and start to discover slave nodes.
+{-| Spawn the task queue on the local node and start to discover slave nodes.
+    Tasks which don't finish within `timeout` return `Nothing`.
+-}
 start
   :: forall a . Serializable a
   => Backend
+  -> NominalDiffTime
   -> Process (TaskQueue a)
-start backend = do
-  queue <- TaskQueue <$> spawnLocal (queue (Proxy :: Proxy a))
+start backend timeout = do
+  queue <- TaskQueue <$> spawnLocal (queue (Proxy :: Proxy a) timeout)
   spawnLocal (slaveDiscovery backend queue)
   return queue
 
@@ -107,7 +112,7 @@ execute
   -- ^ A static pointer for the slave to find the entry point of the task to execute
   -> Closure (Process a)
   -- ^ The state in which to execute the task
-  -> Process a
+  -> Process (Maybe a)
 execute queue dict closure =
   call queue (dict, closure)
 
@@ -115,12 +120,13 @@ execute queue dict closure =
 queue
   :: forall a . Serializable a
   => Proxy a
+  -> NominalDiffTime
   -> Process ()
-queue _ = serve () init process
+queue _ timeout = serve () init process
   where
     init :: InitHandler () (QueueState a)
     init () =
-      return (InitOk initialQueueState Infinity)
+      return (InitOk (initialQueueState timeout) Infinity)
 
     process :: ProcessDefinition (QueueState a)
     process = defaultProcess
@@ -135,13 +141,13 @@ queue _ = serve () init process
       }
 
     assignTasks :: QueueState a -> Process (QueueState a)
-    assignTasks qs@(QueueState slaves active onHold) = do
+    assignTasks qs@(QueueState slaves active onHold timeout) = do
       let
         idle :: Set NodeId
         idle =
           Map.keysSet (Map.filter isNothing slaves)
 
-        assignment :: Maybe (NodeId, CallRef a, Task a)
+        assignment :: Maybe (NodeId, CallRef (Maybe a), Task a)
         assignment = do
           node <- fst <$> Set.minView idle
           (ref, task) <- case Seq.viewl onHold of
@@ -152,9 +158,12 @@ queue _ = serve () init process
       case assignment of
         Nothing -> return qs
         Just (node, callRef, (dict, closure)) -> do
-          --say $ "Assigning node " ++ show node ++ " to a task"
           handle <- async (remoteTask dict node closure)
           monitorRef <- monitorAsync handle
+          spawnLocal $ do
+            -- Not sure if this is the way to go
+            liftIO (threadDelay (ceiling (timeout * 1000000)))
+            cancel handle -- we will handle this in onTaskCompleted
           return qs
             { slaves = Map.insert node (Just monitorRef) slaves
             , onHold = Seq.drop 1 onHold
@@ -163,9 +172,9 @@ queue _ = serve () init process
 
     onNewTask
       :: QueueState a
-      -> CallRef a
+      -> CallRef (Maybe a)
       -> Task a
-      -> Process (ProcessReply a (QueueState a))
+      -> Process (ProcessReply (Maybe a) (QueueState a))
     onNewTask qs ref task =
       assignTasks (qs { onHold = onHold qs |> (ref, task) }) >>= noReply_
 
@@ -190,7 +199,14 @@ queue _ = serve () init process
                   { slaves = Map.adjust (const Nothing) node (slaves qs)
                   , active = withoutRef
                   }
-                replyTo callRef ret
+                replyTo callRef (Just ret)
+                continue qs'
+              AsyncCancelled -> do -- we cancelled the task because of timeout. Don't reassign
+                qs' <- assignTasks qs
+                  { slaves = Map.adjust (const Nothing) node (slaves qs)
+                  , active = withoutRef
+                  }
+                replyTo callRef Nothing
                 continue qs'
               AsyncPending -> fail "Waited for an async task, but still pending"
               _ -> do

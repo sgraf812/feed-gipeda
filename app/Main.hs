@@ -55,6 +55,12 @@ cmd =
             <> metavar "SECONDS"
             <> value Once
             <> help "Don't quit when done, watch the config file for changes and refetch watched repositories every SECONDS seconds and benchmark new commits.")
+    <*> option
+          (fromIntegral <$> auto)
+          (long "timeout"
+            <> metavar "SECONDS"
+            <> value (fromIntegral (30*60))
+            <> help "Timeout for a benchmark run. A slave is canceled if it needs more than SECONDS seconds. Defaults to 30 minutes.")
 
 
 deployment :: Parser Deployment

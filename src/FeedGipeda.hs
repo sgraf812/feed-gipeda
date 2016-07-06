@@ -27,7 +27,8 @@ import           Control.Logging                                    as Logging
 import           Control.Monad                                      (forever,
                                                                      void, when)
 import           Data.List                                          (elemIndex)
-import           Data.Maybe                                         (isJust)
+import           Data.Maybe                                         (fromMaybe,
+                                                                     isJust)
 import           Data.Set                                           (Set)
 import           Data.Time                                          (NominalDiffTime)
 import qualified FeedGipeda.Config                                  as Config
@@ -71,7 +72,7 @@ feedGipeda paths cmd deployment role_ verbosity = do
     Check ->
       -- Just perform a syntax check on the given configFile
       Config.checkFile (configFile paths) >>= maybe exitSuccess error
-    Build mode -> do
+    Build mode timeout -> do
       case slaveEndpoint role_ of
         Just (Endpoint host port) -> do
           let
@@ -88,7 +89,7 @@ feedGipeda paths cmd deployment role_ verbosity = do
           node <- SLN.newLocalNode backend
           tasks <- newChan
           runProcess node $ do
-            taskQueue <- TaskQueue.start backend
+            taskQueue <- TaskQueue.start backend timeout
 
             spawnLocal $ forever $ do
               (finalize, benchmarkScript, repo, commit) <- liftIO (readChan tasks)
@@ -101,6 +102,6 @@ feedGipeda paths cmd deployment role_ verbosity = do
             let
               onNewCommit :: (String -> IO ()) -> String -> Repo -> SHA -> IO ()
               onNewCommit finalize benchmarkScript repo commit =
-                writeChan tasks (finalize, benchmarkScript, repo, commit)
+                writeChan tasks (finalize . fromMaybe "", benchmarkScript, repo, commit)
 
             liftIO (Master.checkForNewCommits paths deployment mode onNewCommit)
