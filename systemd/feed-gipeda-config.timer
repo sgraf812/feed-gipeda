@@ -1,0 +1,9 @@
+[Unit]
+Description=git pull /root/.feed-gipeda/ every 5 minutes
+
+[Timer]
+OnActiveSec=10s
+OnUnitActiveSec=5m
+
+[Install]
+WantedBy=timers.target

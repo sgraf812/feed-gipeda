@@ -1,0 +1,6 @@
+[Unit]
+Description=git pull /root/.feed-gipeda
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/git -C /root/.feed-gipeda pull
