@@ -178,7 +178,11 @@ settingsForRepo :: Repo -> IO GipedaSettings
 settingsForRepo repo = do
   clone <- Repo.cloneDir repo
   firstCommit <- GitShell.firstCommit clone
-  gipedaYaml <- GitShell.showHead clone "gipeda.yaml"
+  gipedaYaml <-
+    GitShell.showHead clone ".gipeda.yaml"
+    <|> GitShell.showHead clone ".gipeda.yml"
+    <|> GitShell.showHead clone "gipeda.yaml"
+    <|> GitShell.showHead clone "gipeda.yml"
   let
     yaml :: Yaml.Value
     yaml =
