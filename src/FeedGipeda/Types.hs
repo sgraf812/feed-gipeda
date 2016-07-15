@@ -26,10 +26,14 @@ data Endpoint
   } deriving (Show, Eq)
 
 
+type Timeout
+  = NominalDiffTime
+
+
 -- | feed-gipeda can either check config file syntax or build the sites.
 data Command
   = Check
-  | Build BuildMode
+  | Build BuildMode Timeout
   deriving (Show, Eq)
 
 

@@ -59,15 +59,19 @@ matrix:
     compiler: ": #stack default"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
-  #- env: BUILD=stack ARGS="--resolver lts-2"
-  #  compiler: ": #stack 7.8.4"
-  #  addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
+    compiler: ": #stack 7.8.4"
+    addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-3"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-3.yaml"
     compiler: ": #stack 7.10.2"
     addons: {apt: {packages: [ghc-7.10.2, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-5"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-5.yaml"
+    compiler: ": #stack 7.10.3"
+    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml"
     compiler: ": #stack 7.10.3"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
@@ -81,15 +85,19 @@ matrix:
     compiler: ": #stack default osx"
     os: osx
 
-  #- env: BUILD=stack ARGS="--resolver lts-2"
-  #  compiler: ": #stack 7.8.4 osx"
-  #  os: osx
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
+    compiler: ": #stack 7.8.4 osx"
+    os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-3"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-3.yaml"
     compiler: ": #stack 7.10.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-5"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-5.yaml"
+    compiler: ": #stack 7.10.3 osx"
+    os: osx
+
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml"
     compiler: ": #stack 7.10.3 osx"
     os: osx
 
@@ -100,6 +108,7 @@ matrix:
   allow_failures:
   - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
   - env: BUILD=stack ARGS="--resolver nightly"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
 
 before_install:
 # Using compiler above sets CC to an invalid value, so unset it
@@ -155,12 +164,15 @@ script:
   set -ex
   case "$BUILD" in
     stack)
-      stack install cloben
-      git clone https://github.com/nomeata/gipeda
-      git -C gipeda reset --hard f4c7404
-      cd gipeda/; stack install; cd ..
+      if [ `uname` = "Darwin" ]
+      then
+        # Installing gitlib is a pain on OS X because of text-icu, so no testing here.
+        stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps
+      else
+        stack install cloben-0.1.0.3 gipeda-0.3.0.1
 
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **/*check*"
+        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern **/*check*"
+      fi
       ;;
     cabal)
       # Deactivated building the test suite in cabal builds for now.

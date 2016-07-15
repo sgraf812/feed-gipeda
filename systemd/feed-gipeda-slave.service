@@ -1,0 +1,13 @@
+[Unit]
+Description=Starts a slave node for feed-gipeda, awaiting benchmark jobs from a master node.
+
+[Service]
+Type=simple
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
+ExecStart=/root/.local/bin/feed-gipeda --slave=localhost:1338
+User=root
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
