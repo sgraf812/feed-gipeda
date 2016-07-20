@@ -7,6 +7,7 @@ module FeedGipeda.Slave
   ) where
 
 
+import           Control.Applicative
 import           Control.Concurrent.Async (Concurrently (..))
 import           Control.Exception        (bracket)
 import           Control.Logging          as Logging
