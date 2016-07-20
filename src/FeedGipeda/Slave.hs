@@ -7,17 +7,51 @@ module FeedGipeda.Slave
   ) where
 
 
-import           Control.Logging     as Logging
-import qualified Data.Text           as Text
-import           FeedGipeda.GitShell (SHA)
-import           FeedGipeda.Repo     (Repo)
-import qualified FeedGipeda.Repo     as Repo
-import           FeedGipeda.Types    (Timeout)
-import           System.Exit         (ExitCode (..))
-import           System.IO.Temp      (withSystemTempDirectory)
-import           System.Process      (cwd, proc, readCreateProcessWithExitCode,
-                                      shell, showCommandForUser)
+import           Control.Concurrent.Async (Concurrently (..))
+import           Control.Exception        (bracket)
+import           Control.Logging          as Logging
+import           Data.Conduit             (($$))
+import qualified Data.Conduit.List        as CL
+import           Data.Conduit.Process     (ClosedStream (..),
+                                           CreateProcess (..),
+                                           interruptProcessGroupOf, proc,
+                                           readCreateProcessWithExitCode, shell,
+                                           showCommandForUser, streamingProcess,
+                                           streamingProcessHandleRaw,
+                                           waitForStreamingProcess)
+import           Data.Monoid
+import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
+import           FeedGipeda.GitShell      (SHA)
+import           FeedGipeda.Repo          (Repo)
+import qualified FeedGipeda.Repo          as Repo
+import           FeedGipeda.Types         (Timeout)
+import           System.Exit              (ExitCode (..))
+import           System.IO.Temp           (withSystemTempDirectory)
 import qualified System.Timeout
+
+
+-- We have to roll our own, because the provided functions use @terminateProcess@
+-- instead of @interruptProcessGroupOf@, so that in case of shelling out we only
+-- kill the shell process but not its children.
+readCreateProcessGroupWithExitCode :: CreateProcess -> IO (ExitCode, String, String)
+readCreateProcessGroupWithExitCode cp =
+  bracket
+    (streamingProcess cp { create_group = True })
+    cleanup
+    captureStreams
+  where
+    cleanup (_, _, _, sph) =
+      interruptProcessGroupOf (streamingProcessHandleRaw sph)
+
+    captureStreams (ClosedStream, out, err, sph) =
+      runConcurrently $ (,,)
+        <$> Concurrently (waitForStreamingProcess sph)
+        <*> Concurrently (out $$ stringSink)
+        <*> Concurrently (err $$ stringSink)
+
+    stringSink =
+      Text.unpack . Text.decodeUtf8 <$> CL.fold (<>) mempty
 
 
 procReportingError :: Repo -> SHA -> Maybe FilePath -> FilePath -> [String] -> IO String
@@ -31,7 +65,7 @@ procReportingError repo commit cwd cmd args = do
 shellReportingError :: Repo -> SHA -> Maybe FilePath -> FilePath -> IO String
 shellReportingError repo commit cwd cmd = do
   (exitCode, stdout, stderr) <-
-    readCreateProcessWithExitCode (shell cmd) { cwd = cwd } ""
+    readCreateProcessGroupWithExitCode (shell cmd) { cwd = cwd }
   reportError repo commit cmd exitCode stderr
   return stdout
 
