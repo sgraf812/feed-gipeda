@@ -89,14 +89,14 @@ feedGipeda paths cmd deployment role_ verbosity = do
           node <- SLN.newLocalNode backend
           tasks <- newChan
           runProcess node $ do
-            taskQueue <- TaskQueue.start backend timeout
+            taskQueue <- TaskQueue.start backend
 
             spawnLocal $ forever $ do
               (finalize, benchmarkScript, repo, commit) <- liftIO (readChan tasks)
               spawnLocal $ do
                 result <- TaskQueue.execute taskQueue
                   THGenerated.stringDict
-                  (THGenerated.benchmarkClosure benchmarkScript repo commit)
+                  (THGenerated.benchmarkClosure benchmarkScript repo commit timeout)
                 liftIO (finalize result)
 
             let

@@ -43,7 +43,6 @@ import           Data.Sequence                                      (Seq,
 import qualified Data.Sequence                                      as Seq
 import           Data.Set                                           (Set)
 import qualified Data.Set                                           as Set
-import           Data.Time                                          (NominalDiffTime)
 import           Data.Typeable                                      (Typeable)
 import           GHC.Generics                                       (Generic)
 
@@ -77,14 +76,13 @@ instance Binary SlaveListChanged
 
 data QueueState a
   = QueueState
-  { slaves  :: Map NodeId (Maybe MonitorRef)
-  , active  :: Map MonitorRef (NodeId, Async a, CallRef (Maybe a), Task a)
-  , onHold  :: Seq (CallRef (Maybe a), Task a)
-  , timeout :: NominalDiffTime
+  { slaves :: Map NodeId (Maybe MonitorRef)
+  , active :: Map MonitorRef (NodeId, Async a, CallRef (Maybe a), Task a)
+  , onHold :: Seq (CallRef (Maybe a), Task a)
   }
 
 
-initialQueueState :: NominalDiffTime -> QueueState a
+initialQueueState :: QueueState a
 initialQueueState =
   QueueState Map.empty Map.empty Seq.empty
 
@@ -95,10 +93,9 @@ initialQueueState =
 start
   :: forall a . Serializable a
   => Backend
-  -> NominalDiffTime
   -> Process (TaskQueue a)
-start backend timeout = do
-  queue <- TaskQueue <$> spawnLocal (queue (Proxy :: Proxy a) timeout)
+start backend = do
+  queue <- TaskQueue <$> spawnLocal (queue (Proxy :: Proxy a))
   spawnLocal (slaveDiscovery backend queue)
   return queue
 
@@ -120,13 +117,12 @@ execute queue dict closure =
 queue
   :: forall a . Serializable a
   => Proxy a
-  -> NominalDiffTime
   -> Process ()
-queue _ timeout = serve () init process
+queue _ = serve () init process
   where
     init :: InitHandler () (QueueState a)
     init () =
-      return (InitOk (initialQueueState timeout) Infinity)
+      return (InitOk initialQueueState Infinity)
 
     process :: ProcessDefinition (QueueState a)
     process = defaultProcess
@@ -141,7 +137,7 @@ queue _ timeout = serve () init process
       }
 
     assignTasks :: QueueState a -> Process (QueueState a)
-    assignTasks qs@(QueueState slaves active onHold timeout) = do
+    assignTasks qs@(QueueState slaves active onHold) = do
       let
         idle :: Set NodeId
         idle =
@@ -160,10 +156,6 @@ queue _ timeout = serve () init process
         Just (node, callRef, (dict, closure)) -> do
           handle <- async (remoteTask dict node closure)
           monitorRef <- monitorAsync handle
-          spawnLocal $ do
-            -- Not sure if this is the way to go
-            liftIO (threadDelay (ceiling (timeout * 1000000)))
-            cancel handle -- we will handle this in onTaskCompleted
           return qs
             { slaves = Map.insert node (Just monitorRef) slaves
             , onHold = Seq.drop 1 onHold
@@ -200,13 +192,6 @@ queue _ timeout = serve () init process
                   , active = withoutRef
                   }
                 replyTo callRef (Just ret)
-                continue qs'
-              AsyncCancelled -> do -- we cancelled the task because of timeout. Don't reassign
-                qs' <- assignTasks qs
-                  { slaves = Map.adjust (const Nothing) node (slaves qs)
-                  , active = withoutRef
-                  }
-                replyTo callRef Nothing
                 continue qs'
               AsyncPending -> fail "Waited for an async task, but still pending"
               _ -> do

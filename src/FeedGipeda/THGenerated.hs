@@ -19,17 +19,18 @@ import           Control.Distributed.Process.Closure (SerializableDict,
 import           FeedGipeda.GitShell                 (SHA)
 import           FeedGipeda.Repo                     (Repo)
 import qualified FeedGipeda.Slave                    as Slave
+import           FeedGipeda.Types                    (Timeout)
 
 
-benchmarkProcess :: (String, Repo, SHA) -> Process String
-benchmarkProcess (benchmarkScript, repo, sha) =
-  liftIO (Slave.benchmark benchmarkScript repo sha)
+benchmarkProcess :: (String, Repo, SHA, Rational) -> Process String
+benchmarkProcess (benchmarkScript, repo, sha, timeout) =
+  liftIO (Slave.benchmark benchmarkScript repo sha (fromRational timeout))
 remotable ['benchmarkProcess]
 
 
-benchmarkClosure :: String -> Repo -> SHA -> Closure (Process String)
-benchmarkClosure benchmarkScript repo commit =
-  $(mkClosure 'benchmarkProcess) (benchmarkScript, repo, commit)
+benchmarkClosure :: String -> Repo -> SHA -> Timeout -> Closure (Process String)
+benchmarkClosure benchmarkScript repo commit timeout =
+  $(mkClosure 'benchmarkProcess) (benchmarkScript, repo, commit, toRational timeout)
 
 
 stringDict :: Static (SerializableDict String)

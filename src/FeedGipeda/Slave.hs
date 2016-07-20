@@ -1,4 +1,4 @@
-{-| @benchmark@ contains the logic to be executed on slave nodes.
+{-| @benchmark@ contains the logic to be executed on slave nodes.
 -}
 
 
@@ -12,10 +12,12 @@ import qualified Data.Text           as Text
 import           FeedGipeda.GitShell (SHA)
 import           FeedGipeda.Repo     (Repo)
 import qualified FeedGipeda.Repo     as Repo
+import           FeedGipeda.Types    (Timeout)
 import           System.Exit         (ExitCode (..))
 import           System.IO.Temp      (withSystemTempDirectory)
 import           System.Process      (cwd, proc, readCreateProcessWithExitCode,
                                       shell, showCommandForUser)
+import qualified System.Timeout
 
 
 procReportingError :: Repo -> SHA -> Maybe FilePath -> FilePath -> [String] -> IO String
@@ -60,10 +62,19 @@ cloneRecursiveAndCheckout repo commit cloneDir = do
 
     Will be executed on slave nodes.
 -}
-benchmark :: String -> Repo -> SHA -> IO String
-benchmark benchmarkScript repo commit = do
+benchmark :: String -> Repo -> SHA -> Timeout -> IO String
+benchmark benchmarkScript repo commit timeout = do
   clone <- Repo.cloneDir repo
   Logging.log (Text.pack ("Benchmarking " ++ Repo.uri repo ++ "@" ++ commit))
   withSystemTempDirectory "feed-gipeda" $ \cloneDir -> do
     cloneRecursiveAndCheckout repo commit cloneDir
-    shellReportingError repo commit (Just cloneDir) benchmarkScript
+    res <- System.Timeout.timeout (ceiling (timeout * 10^6)) $
+      shellReportingError repo commit (Just cloneDir) benchmarkScript
+    case res of
+      Just res -> return res
+      Nothing -> do
+        Logging.warn . Text.pack . unlines $
+          [ "Benchmark script timed out (--timeout is " ++ show timeout ++ ")"
+          , "At commit " ++ Repo.uri repo ++ "@" ++ commit
+          ]
+        return "build/timeout;1.0"
