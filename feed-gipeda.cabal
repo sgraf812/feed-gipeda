@@ -1,5 +1,5 @@
 name:                feed-gipeda
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Simple project template from stack
 description:
   A service for easy handling of multiple repositories with <https://hackage.haskell.org/package/gipeda gipeda>.
