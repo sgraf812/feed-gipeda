@@ -14,10 +14,14 @@ module FeedGipeda.Gipeda
 
 
 import           Control.Applicative
+import qualified Control.Logging     as Logging
+import           Control.Monad       (liftM2, when)
 import           Data.Aeson          (withArray, withObject)
+import           Data.Either         (either)
 import           Data.Functor
-import           Data.Maybe          (catMaybes, fromMaybe)
+import           Data.Maybe          (catMaybes, fromMaybe, isJust, isNothing)
 import           Data.String         (fromString)
+import qualified Data.Text           as Text
 import           Data.Yaml           (FromJSON (..), ToJSON (..), (.:), (.=))
 import qualified Data.Yaml           as Yaml
 import           FeedGipeda.GitShell (SHA)
@@ -169,24 +173,37 @@ determineBenchmarkScript repo = do
     Yaml.parseMaybe (\_ -> settings .: "benchmarkScript") ()
 
 
+readFileMaybe :: FilePath -> IO (Maybe String)
+readFileMaybe file = do
+  exists <- doesFileExist file
+  if exists
+    then Just <$> readFile file
+    else return Nothing
+
+
 {-| Generates a @gipeda.yaml@ file for the given repository. It thereby takes
-    project-specific settings from a top-level @gipeda.yaml@ file at the
-    repository's @HEAD@ (if present) and fills in missing settings with
-    defaults.
+    project-specific settings from a top-level @\.?gipeda.ya?ml@ file at the
+    repository's @HEAD@ (if present) or from the project directory and fills
+    in missing settings with defaults.
 -}
 settingsForRepo :: Repo -> IO GipedaSettings
 settingsForRepo repo = do
+  let a <?> b = liftM2 (<|>) a b
   clone <- Repo.cloneDir repo
   firstCommit <- GitShell.firstCommit clone
   gipedaYaml <-
     GitShell.showHead clone ".gipeda.yaml"
-    <|> GitShell.showHead clone ".gipeda.yml"
-    <|> GitShell.showHead clone "gipeda.yaml"
-    <|> GitShell.showHead clone "gipeda.yml"
+    <?> GitShell.showHead clone ".gipeda.yml"
+    <?> GitShell.showHead clone "gipeda.yaml"
+    <?> GitShell.showHead clone "gipeda.yml"
+    <?> (Repo.settingsFile repo >>= readFileMaybe)
+
   let
-    yaml :: Yaml.Value
-    yaml =
-      fromMaybe (Yaml.object []) (gipedaYaml >>= Yaml.decode . fromString)
+    parsedValue :: Either String Yaml.Value
+    parsedValue = do
+      contents <- maybe (Left "Could not find a gipeda.yaml.") Right gipedaYaml
+      either (Left . ("Could not parse the supplied gipeda.yaml:\n" ++)) Right $
+        Yaml.decodeEither (fromString contents)
 
     revisionInfo :: String
     revisionInfo =
@@ -207,4 +224,9 @@ settingsForRepo repo = do
         where key ?? def = obj .: key <|> pure def
     settings _ = settings (Yaml.object []) -- This should fill in some defaults nonetheless
 
-  Yaml.parseMonad settings yaml -- This should never fail. Never!
+  case parsedValue of
+    Left err -> do
+      Logging.warn (Text.pack err)
+      Yaml.parseMonad settings (Yaml.object [])
+    Right value ->
+      Yaml.parseMonad settings value

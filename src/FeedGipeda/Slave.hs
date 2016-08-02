@@ -106,7 +106,10 @@ benchmark benchmarkScript repo commit timeout = do
     res <- System.Timeout.timeout (ceiling (timeout * 10^6)) $
       shellReportingError repo commit (Just cloneDir) benchmarkScript
     case res of
-      Just res -> return res
+      Just res -> do
+        Logging.log (Text.pack "Finished. Output:")
+        mapM_ (Logging.log . Text.pack) (lines res)
+        return res
       Nothing -> do
         Logging.warn . Text.pack . unlines $
           [ "Benchmark script timed out (--timeout is " ++ show timeout ++ ")"

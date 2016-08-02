@@ -3,8 +3,6 @@
 module FeedGipeda.Master.File
   ( writeBenchmarkCSV
   , isBenchmarkCSV
-  , generateBacklog
-  , writeBacklog
   , readBacklog
   , isBacklog
   , repoOfPath
@@ -27,28 +25,6 @@ import           System.FilePath     (dropFileName, makeRelative, normalise,
                                       splitDirectories, takeBaseName,
                                       takeBaseName, takeExtension, takeFileName,
                                       (<.>), (</>))
-
-
--- Until this is done by gipeda, we have to also produce the backlog on our own.
-generateBacklog :: Repo -> IO (Set SHA)
-generateBacklog repo = do
-  projectDir <- Repo.projectDir repo
-  path <- Repo.cloneDir repo
-  hasClone <- GitShell.isRepositoryRoot path
-  if not hasClone -- This should never be true, actually
-    then return Set.empty
-    else do
-      allCommits <- GitShell.allCommits path
-      resultsDir <- Repo.resultsDir repo
-      createDirectoryIfMissing True resultsDir
-      alreadyHandledCommits <- Set.fromList . map takeBaseName <$> getDirectoryContents resultsDir
-      return (Set.difference allCommits alreadyHandledCommits)
-
-
-writeBacklog :: Repo -> Set SHA -> IO ()
-writeBacklog repo backlog = do
-  backlogFile <- Repo.backlogFile repo
-  writeFile backlogFile (unlines (Set.toList backlog))
 
 
 readBacklog :: Repo -> IO (Set SHA)
@@ -76,14 +52,16 @@ isBacklog cwd path =
   and
     [ map toLower (takeBaseName path) == "backlog"
     , map toLower (takeExtension path) == ".txt"
-    , matchProjectRelativeDirectory [] cwd path
+    , matchProjectRelativeDirectory ["site", "out"] cwd path
     ]
 
 
 writeBenchmarkCSV :: Repo -> SHA -> String -> IO ()
 writeBenchmarkCSV repo commit result = do
   cwd <- getCurrentDirectory
-  writeFile (cwd </> Repo.uniqueName repo </> "site" </> "out" </> "results" </> commit <.> "csv") result
+  resultsDir <- Repo.resultsDir repo
+  createDirectoryIfMissing True resultsDir
+  writeFile (resultsDir </> commit <.> "csv") result
 
 
 isBenchmarkCSV :: FilePath -> FilePath -> Bool

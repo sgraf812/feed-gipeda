@@ -73,7 +73,7 @@ regenerateAndDeploy gipeda deployment repos repo = do
   if isJust first
     then do
       saveSettings repo
-      executeIn (Just project) gipeda ["-j"]
+      executeIn (Just project) gipeda ["-j", "--keep-going", "--always-make"]
       rsyncSite repos repo deployment
       return ()
     else

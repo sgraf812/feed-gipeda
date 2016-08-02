@@ -93,4 +93,4 @@ settingsFile repo =
 
 backlogFile :: Repo -> IO FilePath
 backlogFile repo =
-  fmap (</> "backlog.txt") (projectDir repo)
+  fmap (</> "site" </> "out" </> "backlog.txt") (projectDir repo)
