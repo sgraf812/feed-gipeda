@@ -9,7 +9,7 @@
 ### END INIT INFO
 
 
-SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=\$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600"
+SCRIPT="mkdir -p /root/feed-gipeda-artifacts && cd /root/feed-gipeda-artifacts && PATH=\$PATH:/root/.local/bin feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --timeout=7200 --watch=3600"
 RUNAS=root
 
 PGIDFILE=/var/run/feed-gipeda-master.pgid

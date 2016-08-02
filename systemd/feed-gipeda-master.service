@@ -6,7 +6,7 @@ Type=simple
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
 ExecStartPre=/bin/mkdir -p /root/feed-gipeda-artifacts
 WorkingDirectory=/root/feed-gipeda-artifacts/
-ExecStart=/root/.local/bin/feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600
+ExecStart=/root/.local/bin/feed-gipeda --master=localhost:1337 --deploy-to=/var/www/html/ --watch=3600 --timeout=7200
 User=root
 Restart=on-failure
 
