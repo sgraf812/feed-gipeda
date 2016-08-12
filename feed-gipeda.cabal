@@ -28,7 +28,7 @@ extra-source-files:    assets/default_index.html
 library
   hs-source-dirs:      src
   exposed-modules:     FeedGipeda
-  other-modules:       FeedGipeda.GitShell
+                     , FeedGipeda.GitShell
                      , FeedGipeda.Assets
                      , FeedGipeda.Repo
                      , FeedGipeda.Master
@@ -108,6 +108,7 @@ test-suite test
                      , tasty-hunit
                      , tasty-hspec
                      , HUnit
+                     , feed-gipeda
                      , temporary >= 1.1
                      , file-embed >= 0.0.10
                      , exceptions
@@ -123,6 +124,8 @@ test-suite test
                      , conduit-extra >= 1.1.2
                      , text
                      , async
+                     , free
+                     , logging
 
 source-repository head
   type: git

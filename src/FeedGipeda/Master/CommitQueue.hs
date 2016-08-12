@@ -1,6 +1,5 @@
 module FeedGipeda.Master.CommitQueue
   ( CommitQueue
-  , ScheduledCommit
   , new
   , dequeue
   , updateRepoBacklog
@@ -27,9 +26,6 @@ import qualified FeedGipeda.Repo          as Repo
 data CommitQueue
   = CommitQueue (MVar State) Event
 
-
-type ScheduledCommit
-  = (String, Repo, SHA, String -> IO ())
 
 data Backlog
   = Backlog
@@ -96,7 +92,7 @@ nextCommitView s = go traversal
                 newBacklog = Backlog queue set (Set.insert commit blacklist)
 
 
-dequeue :: CommitQueue -> IO ScheduledCommit
+dequeue :: CommitQueue -> IO (Repo, SHA)
 dequeue cq@(CommitQueue stateVar stateChanged) = do
   Event.wait stateChanged
   maybePair <- modifyMVar stateVar $ \state ->
@@ -107,8 +103,7 @@ dequeue cq@(CommitQueue stateVar stateChanged) = do
     Nothing -> dequeue cq
     Just ((repo, commit), newState) -> do
       logInfo (unlines ["Dequeue (" ++ Repo.shortName repo ++ ", " ++ take 7 commit ++ "). New state: ", showState newState])
-      benchmarkScript <- Gipeda.determineBenchmarkScript repo
-      return (benchmarkScript, repo, commit, File.writeBenchmarkCSV repo commit)
+      return (repo, commit)
 
 
 updateRepoBacklog :: CommitQueue -> Repo -> [SHA] -> IO Bool

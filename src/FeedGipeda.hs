@@ -32,9 +32,11 @@ import           Data.Maybe                                         (fromMaybe,
 import           Data.Set                                           (Set)
 import           Data.Time                                          (NominalDiffTime)
 import qualified FeedGipeda.Config                                  as Config
+import qualified FeedGipeda.Gipeda                                  as Gipeda
 import           FeedGipeda.GitShell                                (SHA)
 import qualified FeedGipeda.Master                                  as Master
 import qualified FeedGipeda.Master.CommitQueue                      as CommitQueue
+import qualified FeedGipeda.Master.File                             as Master.File
 import           FeedGipeda.Prelude
 import           FeedGipeda.Repo                                    (Repo)
 import qualified FeedGipeda.TaskScheduler                           as TaskScheduler
@@ -92,9 +94,10 @@ feedGipeda paths cmd deployment role_ verbosity = do
           queue <- CommitQueue.new
           runProcess node $ do
             let
-              toTask :: CommitQueue.ScheduledCommit -> TaskScheduler.Task String
-              toTask (benchmarkScript, repo, commit, finalize) =
-                (THGenerated.stringDict, THGenerated.benchmarkClosure benchmarkScript repo commit timeout, finalize . fromMaybe "")
+              toTask :: (Repo, SHA) -> IO (TaskScheduler.Task String)
+              toTask (repo, commit) = do
+                script <- Gipeda.determineBenchmarkScript repo
+                return (THGenerated.stringDict, THGenerated.benchmarkClosure script repo commit timeout, Master.File.writeBenchmarkCSV repo commit . fromMaybe "")
 
-            TaskScheduler.start backend (toTask <$> CommitQueue.dequeue queue)
+            TaskScheduler.start backend (CommitQueue.dequeue queue >>= toTask)
             liftIO (Master.checkForNewCommits paths deployment mode queue)
