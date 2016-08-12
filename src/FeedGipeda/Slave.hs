@@ -24,6 +24,7 @@ import           Data.Monoid
 import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import           FeedGipeda.GitShell      (SHA)
+import           FeedGipeda.Prelude
 import           FeedGipeda.Repo          (Repo)
 import qualified FeedGipeda.Repo          as Repo
 import           FeedGipeda.Types         (Timeout)
@@ -76,7 +77,7 @@ reportError repo commit cmd code stderr =
   case code of
     ExitSuccess -> return ()
     ExitFailure c ->
-      Logging.warn . Text.pack . unlines $
+      logWarn . unlines $
         [ "Benchmark script error"
         , "At commit " ++ Repo.uri repo ++ "@" ++ commit ++ ":"
         , cmd ++ ": exit code " ++ show c
@@ -100,18 +101,18 @@ cloneRecursiveAndCheckout repo commit cloneDir = do
 benchmark :: String -> Repo -> SHA -> Timeout -> IO String
 benchmark benchmarkScript repo commit timeout = do
   clone <- Repo.cloneDir repo
-  Logging.log (Text.pack ("Benchmarking " ++ Repo.uri repo ++ "@" ++ commit))
+  logInfo ("Benchmarking " ++ Repo.uri repo ++ "@" ++ commit)
   withSystemTempDirectory "feed-gipeda" $ \cloneDir -> do
     cloneRecursiveAndCheckout repo commit cloneDir
     res <- System.Timeout.timeout (ceiling (timeout * 10^6)) $
       shellReportingError repo commit (Just cloneDir) benchmarkScript
     case res of
       Just res -> do
-        Logging.log (Text.pack "Finished. Output:")
-        mapM_ (Logging.log . Text.pack) (lines res)
+        logInfo "Finished. Output:"
+        mapM_ logInfo (lines res)
         return res
       Nothing -> do
-        Logging.warn . Text.pack . unlines $
+        logWarn . unlines $
           [ "Benchmark script timed out (--timeout is " ++ show timeout ++ ")"
           , "At commit " ++ Repo.uri repo ++ "@" ++ commit
           ]

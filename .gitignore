@@ -12,4 +12,4 @@ cabal.sandbox.config
 *.hp
 .*/
 logs/
-tmp/
+tmp*/

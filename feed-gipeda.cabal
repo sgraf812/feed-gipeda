@@ -36,15 +36,17 @@ library
                      , FeedGipeda.Gipeda
                      , FeedGipeda.Config
                      , FeedGipeda.THGenerated
-                     , FeedGipeda.TaskQueue
+                     , FeedGipeda.TaskScheduler
                      , FeedGipeda.Types
                      , FeedGipeda.Master.Finalize
                      , FeedGipeda.Master.File
                      , FeedGipeda.Master.RepoDiff
+                     , FeedGipeda.Master.CommitQueue
+                     , FeedGipeda.Prelude
   default-language:    Haskell2010
   build-depends:       base >= 4.6 && < 5
-                     , fsnotify >= 0.2 && < 0.3
                      , containers >= 0.5 && < 0.6
+                     , fsnotify >= 0.2 && < 0.3
                      -- prettyPrintParseException
                      , yaml >= 0.8.11 && < 0.9
                      -- We only use (.=), encode and object from aeson, so we should be fine with any version
@@ -75,6 +77,8 @@ library
                      , conduit-extra >= 1.1.2 && < 1.2
                      -- Concurrently
                      , async >= 2.0.1 && < 2.2
+                     -- Any version with MSemN should do
+                     , SafeSemaphore
 
 executable feed-gipeda
   hs-source-dirs:      app

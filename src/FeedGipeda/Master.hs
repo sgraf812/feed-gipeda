@@ -13,67 +13,49 @@
 -}
 
 module FeedGipeda.Master
-  ( NewCommitAction
-  , checkForNewCommits
+  ( checkForNewCommits
   ) where
 
 
-import           Control.Concurrent         (forkIO, threadDelay)
-import           Control.Concurrent.Event   (Event)
-import qualified Control.Concurrent.Event   as Event
-import           Control.Concurrent.Lock    (Lock)
-import qualified Control.Concurrent.Lock    as Lock
-import           Control.Logging            as Logging
-import           Control.Monad              (forM_, forever, when)
-import           Control.Monad.IO.Class     (liftIO)
+import           Control.Concurrent            (forkIO, threadDelay)
+import           Control.Concurrent.Event      (Event)
+import qualified Control.Concurrent.Event      as Event
+import           Control.Concurrent.Lock       (Lock)
+import qualified Control.Concurrent.Lock       as Lock
+import           Control.Logging               as Logging
+import           Control.Monad                 (forM_, forever, when)
+import           Control.Monad.IO.Class        (liftIO)
 import           Data.Functor
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
-import           Data.Maybe                 (fromMaybe, listToMaybe)
-import           Data.Set                   (Set)
-import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
-import           Data.Time                  (NominalDiffTime)
-import qualified Data.Time                  as Time
-import           Debug.Trace                (traceShowId)
-import qualified FeedGipeda.Config          as Config
-import qualified FeedGipeda.Gipeda          as Gipeda
-import           FeedGipeda.GitShell        (SHA)
-import qualified FeedGipeda.GitShell        as GitShell
-import qualified FeedGipeda.Master.File     as File
-import qualified FeedGipeda.Master.Finalize as Finalize
-import           FeedGipeda.Master.RepoDiff (RepoDiff)
-import qualified FeedGipeda.Master.RepoDiff as RepoDiff
-import           FeedGipeda.Repo            (Repo)
-import qualified FeedGipeda.Repo            as Repo
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
+import           Data.Maybe                    (fromMaybe, listToMaybe)
+import           Data.Set                      (Set)
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as Text
+import           Data.Time                     (NominalDiffTime)
+import qualified Data.Time                     as Time
+import           Debug.Trace                   (traceShowId)
+import qualified FeedGipeda.Config             as Config
+import qualified FeedGipeda.Gipeda             as Gipeda
+import           FeedGipeda.GitShell           (SHA)
+import qualified FeedGipeda.GitShell           as GitShell
+import           FeedGipeda.Master.CommitQueue (CommitQueue)
+import qualified FeedGipeda.Master.CommitQueue as CommitQueue
+import qualified FeedGipeda.Master.File        as File
+import qualified FeedGipeda.Master.Finalize    as Finalize
+import           FeedGipeda.Master.RepoDiff    (RepoDiff)
+import qualified FeedGipeda.Master.RepoDiff    as RepoDiff
+import           FeedGipeda.Prelude
+import           FeedGipeda.Repo               (Repo)
+import qualified FeedGipeda.Repo               as Repo
 import           FeedGipeda.Types
-import           Reactive.Banana            ((<@), (<@>))
-import qualified Reactive.Banana            as Banana
-import qualified Reactive.Banana.Frameworks as Banana
-import           System.Directory           (canonicalizePath,
-                                             getCurrentDirectory)
-import           System.FilePath            (equalFilePath, takeDirectory)
-import qualified System.FSNotify            as FS
-
-
--- | Handler which will be called for commits @gipeda@ requests to benchmark.
-type NewCommitAction
-  = (String -> IO ())
-  -- ^ Continuation to call with the benchmark results
-  -> String
-  -- ^ The @benchmarkScript@ as determined when assembling the @gipeda.yaml@
-  -> Repo
-  -- ^ The repository of the commit to benchmark
-  -> SHA
-  -- ^ The commit to benchmark
-  -> IO ()
-
-
-notifyOnNewCommitsInBacklog :: NewCommitAction -> (Repo, Set SHA) -> IO ()
-notifyOnNewCommitsInBacklog onNewCommit (repo, backlog) = do
-  benchmarkScript <- Gipeda.determineBenchmarkScript repo
-  forM_ (Set.toList backlog) $ \commit ->
-    onNewCommit (File.writeBenchmarkCSV repo commit) benchmarkScript repo commit
+import           Reactive.Banana               ((<@), (<@>))
+import qualified Reactive.Banana               as Banana
+import qualified Reactive.Banana.Frameworks    as Banana
+import           System.Directory              (canonicalizePath,
+                                                getCurrentDirectory)
+import           System.FilePath               (equalFilePath, takeDirectory)
+import qualified System.FSNotify               as FS
 
 
 finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
@@ -88,7 +70,7 @@ readConfigFileRepos evt =
     FS.Removed _ _ -> return (Just Set.empty)
     _ ->
       Config.decodeFile (FS.eventPath evt) >>= either
-        (\err -> Logging.warn (Text.pack err) >> return Nothing)
+        (\err -> logWarn err >> return Nothing)
         (return . Just . Config.repos)
 
 
@@ -99,36 +81,10 @@ accumDiff repos =
   fst <$> Banana.mapAccum Set.empty ((\new old -> (RepoDiff.compute old new, new)) <$> repos)
 
 
-dedupCommitsAndNotifyWhenEmpty
-  :: IO ()
-  -> Banana.Event (Repo, Set SHA)
-  -> Banana.MomentIO (Banana.Event (Repo, Set SHA))
-dedupCommitsAndNotifyWhenEmpty notify commits = do
-  (events, maps) <- Banana.mapAccum Map.empty (filterDuplicates <$> commits)
-  Banana.mapEventIO id events
-    where
-      filterDuplicates
-        :: (Repo, Set SHA)
-        -> Map Repo (Set SHA)
-        -> (IO (Repo, Set SHA), Map Repo (Set SHA))
-      filterDuplicates (repo, commits) inProgress =
-        let
-          nonDuplicates =
-            Set.difference commits (fromMaybe Set.empty (Map.lookup repo inProgress))
-
-          newMap =
-            if Set.null commits
-              then Map.delete repo inProgress
-              else Map.insert repo commits inProgress
-
-          eventAction = do
-            when (Map.null newMap) notify
-            Logging.log (Text.pack ("Backlog for " ++ Repo.uri repo
-              ++ " contained " ++ show (Set.size commits) ++ " commits, "
-              ++ show (Set.size nonDuplicates) ++ " unhandled."))
-            return (repo, nonDuplicates)
-        in
-          (eventAction, newMap)
+updateCommitQueue :: CommitQueue -> Repo -> IO Bool
+updateCommitQueue queue repo = do
+  backlog <- File.readBacklog repo
+  CommitQueue.updateRepoBacklog queue repo backlog
 
 
 periodically :: NominalDiffTime -> Banana.MomentIO (Banana.Event ())
@@ -168,9 +124,9 @@ checkForNewCommits
   :: Paths
   -> Deployment
   -> BuildMode
-  -> NewCommitAction
+  -> CommitQueue
   -> IO ()
-checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> do
+checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> do
   cwd <- getCurrentDirectory
   exit <- Event.new
   start <- Event.new
@@ -181,7 +137,7 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
       (event, fire) <- Banana.newEvent
       path <- liftIO (canonicalizePath path')
       liftIO $ FS.watchDir mgr (takeDirectory path) (equalFilePath path . FS.eventPath) $ \evt -> do
-        Logging.debug (Text.pack ("File changed: " ++ show evt))
+        logDebug ("File changed: " ++ show evt)
         fire evt
       return event
 
@@ -189,7 +145,7 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
     watchTree path predicate = do
       (event, fire) <- Banana.newEvent
       liftIO $ FS.watchTree mgr path (predicate . FS.eventPath) $ \evt -> do
-        Logging.debug (Text.pack ("File changed: " ++ show evt))
+        logDebug ("File changed: " ++ show evt)
         fire evt
       return event
 
@@ -222,7 +178,7 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
         Banana.mapEventIO
           (\added -> do
             forM_ (Set.toList added) $ \repo -> do
-              Logging.log (Text.pack ("Syncing " ++ Repo.shortName repo))
+              logInfo ("Syncing " ++ Repo.shortName repo)
               GitShell.sync repo
             return added)
           (RepoDiff.added <$> diffs)
@@ -240,11 +196,14 @@ checkForNewCommits paths deployment mode onNewCommit = FS.withManager $ \mgr -> 
       backlogs <- watchTree cwd (File.isBacklog cwd)
       backlogRepos <- repoOfFileEvent cwd activeReposB backlogs
 
-      -- Sink: Backlog changes kick off workers, resp. the new commit action
-      backlogCommits <- Banana.mapEventIO (\repo -> (,) repo <$> File.readBacklog repo) backlogRepos
+      -- Sink: Backlog changes are propagated to the commit queue, which should
+      --       know how to handle them. Also we exit when the queue is empty,
+      --       provided we are in --one-shot mode.
+      --   TODO: This exits prematurely when we start with a repo with an empty
+      --         backlog regardless of other repos with non-empty backlogs.
+      queueEmpty <- Banana.mapEventIO (updateCommitQueue commitQueue) backlogRepos
       let doExit = when (mode == Once) (Event.set exit)
-      dedupedCommits <- dedupCommitsAndNotifyWhenEmpty doExit backlogCommits
-      Banana.reactimate (notifyOnNewCommitsInBacklog onNewCommit <$> dedupedCommits)
+      Banana.reactimate ((`when` doExit) <$> queueEmpty)
 
   network <- Banana.compile networkDescription
   Banana.actuate network

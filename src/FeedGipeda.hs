@@ -34,8 +34,10 @@ import           Data.Time                                          (NominalDiff
 import qualified FeedGipeda.Config                                  as Config
 import           FeedGipeda.GitShell                                (SHA)
 import qualified FeedGipeda.Master                                  as Master
+import qualified FeedGipeda.Master.CommitQueue                      as CommitQueue
+import           FeedGipeda.Prelude
 import           FeedGipeda.Repo                                    (Repo)
-import qualified FeedGipeda.TaskQueue                               as TaskQueue
+import qualified FeedGipeda.TaskScheduler                           as TaskScheduler
 import qualified FeedGipeda.THGenerated                             as THGenerated
 import           FeedGipeda.Types
 import           Network.URI                                        (parseURI)
@@ -79,7 +81,7 @@ feedGipeda paths cmd deployment role_ verbosity = do
             run = if isBoth role_ then void . forkIO else id
           run $ do
             backend <- SLN.initializeBackend host (show port) remoteTable
-            TaskQueue.work backend
+            TaskScheduler.work backend
         _ -> return ()
 
       case masterEndpoint role_ of
@@ -87,21 +89,12 @@ feedGipeda paths cmd deployment role_ verbosity = do
         Just (Endpoint host port) -> do
           backend <- SLN.initializeBackend host (show port) remoteTable
           node <- SLN.newLocalNode backend
-          tasks <- newChan
+          queue <- CommitQueue.new
           runProcess node $ do
-            taskQueue <- TaskQueue.start backend
-
-            spawnLocal $ forever $ do
-              (finalize, benchmarkScript, repo, commit) <- liftIO (readChan tasks)
-              spawnLocal $ do
-                result <- TaskQueue.execute taskQueue
-                  THGenerated.stringDict
-                  (THGenerated.benchmarkClosure benchmarkScript repo commit timeout)
-                liftIO (finalize result)
-
             let
-              onNewCommit :: (String -> IO ()) -> String -> Repo -> SHA -> IO ()
-              onNewCommit finalize benchmarkScript repo commit =
-                writeChan tasks (finalize . fromMaybe "", benchmarkScript, repo, commit)
+              toTask :: CommitQueue.ScheduledCommit -> TaskScheduler.Task String
+              toTask (benchmarkScript, repo, commit, finalize) =
+                (THGenerated.stringDict, THGenerated.benchmarkClosure benchmarkScript repo commit timeout, finalize . fromMaybe "")
 
-            liftIO (Master.checkForNewCommits paths deployment mode onNewCommit)
+            TaskScheduler.start backend (toTask <$> CommitQueue.dequeue queue)
+            liftIO (Master.checkForNewCommits paths deployment mode queue)

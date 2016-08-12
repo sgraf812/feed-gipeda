@@ -17,6 +17,7 @@ import           Data.Set            (Set)
 import qualified Data.Set            as Set
 import           FeedGipeda.GitShell (SHA)
 import qualified FeedGipeda.GitShell as GitShell
+import           FeedGipeda.Prelude
 import           FeedGipeda.Repo     (Repo)
 import qualified FeedGipeda.Repo     as Repo
 import           System.Directory    (createDirectoryIfMissing, doesFileExist,
@@ -27,13 +28,10 @@ import           System.FilePath     (dropFileName, makeRelative, normalise,
                                       (<.>), (</>))
 
 
-readBacklog :: Repo -> IO (Set SHA)
+readBacklog :: Repo -> IO [SHA]
 readBacklog repo = do
   backlog <- Repo.backlogFile repo
-  exists <- doesFileExist backlog
-  if exists
-    then Set.fromList . lines <$> readFile backlog
-    else return Set.empty
+  maybe [] lines <$> readFileMaybe backlog
 
 
 matchProjectRelativeDirectory :: [String] -> FilePath -> FilePath -> Bool

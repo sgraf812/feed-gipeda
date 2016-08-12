@@ -26,6 +26,7 @@ import           Data.Yaml           (FromJSON (..), ToJSON (..), (.:), (.=))
 import qualified Data.Yaml           as Yaml
 import           FeedGipeda.GitShell (SHA)
 import qualified FeedGipeda.GitShell as GitShell
+import           FeedGipeda.Prelude
 import           FeedGipeda.Repo     (Repo)
 import qualified FeedGipeda.Repo     as Repo
 import           System.Directory    (doesFileExist)
@@ -173,14 +174,6 @@ determineBenchmarkScript repo = do
     Yaml.parseMaybe (\_ -> settings .: "benchmarkScript") ()
 
 
-readFileMaybe :: FilePath -> IO (Maybe String)
-readFileMaybe file = do
-  exists <- doesFileExist file
-  if exists
-    then Just <$> readFile file
-    else return Nothing
-
-
 {-| Generates a @gipeda.yaml@ file for the given repository. It thereby takes
     project-specific settings from a top-level @\.?gipeda.ya?ml@ file at the
     repository's @HEAD@ (if present) or from the project directory and fills
@@ -226,7 +219,7 @@ settingsForRepo repo = do
 
   case parsedValue of
     Left err -> do
-      Logging.warn (Text.pack err)
+      logWarn err
       Yaml.parseMonad settings (Yaml.object [])
     Right value ->
       Yaml.parseMonad settings value

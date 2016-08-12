@@ -27,6 +27,7 @@ import qualified FeedGipeda.Assets    as Assets
 import qualified FeedGipeda.Gipeda    as Gipeda
 import           FeedGipeda.GitShell  (SHA)
 import qualified FeedGipeda.GitShell  as GitShell
+import           FeedGipeda.Prelude
 import           FeedGipeda.Repo      (Repo)
 import qualified FeedGipeda.Repo      as Repo
 import           FeedGipeda.Types     (Deployment (..))
@@ -44,15 +45,15 @@ executeIn :: Maybe FilePath -> FilePath -> [String] -> IO String
 executeIn cwd executable args = do
   (exitCode, stdout, stderr) <-
     readCreateProcessWithExitCode (proc executable args) { cwd = cwd } ""
-  Logging.debug (Text.pack (takeBaseName executable ++ ": " ++ show exitCode))
+  logDebug (takeBaseName executable ++ ": " ++ show exitCode)
   case exitCode of
-    ExitFailure _ -> Logging.debug (Text.pack stderr) >> Logging.debug (Text.pack stdout)
+    ExitFailure _ -> logDebug stderr >> logDebug stdout
     _ -> return ()
   -- That's too much even for debug
-  --Logging.debug (Text.pack "stdout:")
-  --Logging.debug (Text.pack stdout)
-  --Logging.debug (Text.pack "stderr:")
-  --Logging.debug (Text.pack stderr)
+  --logDebug "stdout:"
+  --logDebug stdout
+  --logDebug "stderr:"
+  --logDebug stderr
   return stdout
 
 
@@ -67,7 +68,7 @@ executeIn cwd executable args = do
 regenerateAndDeploy :: FilePath -> Deployment -> Set Repo -> Repo -> IO ()
 regenerateAndDeploy gipeda deployment repos repo = do
   project <- Repo.projectDir repo
-  Logging.log (Text.pack ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")"))
+  logInfo ("Regenerating " ++ Repo.uri repo ++ " (" ++ Repo.uniqueName repo ++ ")")
   clone <- Repo.cloneDir repo
   first <- GitShell.firstCommit clone
   if isJust first
@@ -77,7 +78,7 @@ regenerateAndDeploy gipeda deployment repos repo = do
       rsyncSite repos repo deployment
       return ()
     else
-      Logging.log (Text.pack "There were no commits")
+      logInfo "There were no commits"
 
 
 saveSettings :: Repo -> IO ()
@@ -161,7 +162,7 @@ rsyncSite repos repo (Deploy remoteDir) = do
   -- remote directory acutally exists on the remote machine.
   -- Otherwise, we couldn't cope with nested sshSubPaths.
   -- -a: archive mode (many different flags), -v verbose, -z compress
-  Logging.log (Text.pack "rsyncing")
+  logInfo "rsyncing"
   let (sshPart, filePart) = parseSSHUri remoteDir
 
   case sshPart of
