@@ -17,6 +17,7 @@ module FeedGipeda.Master
   ) where
 
 
+import           Control.Arrow                 (second)
 import           Control.Concurrent            (forkIO, threadDelay)
 import           Control.Concurrent.Async      (mapConcurrently)
 import           Control.Concurrent.Event      (Event)
@@ -24,7 +25,7 @@ import qualified Control.Concurrent.Event      as Event
 import           Control.Concurrent.Lock       (Lock)
 import qualified Control.Concurrent.Lock       as Lock
 import           Control.Logging               as Logging
-import           Control.Monad                 (forM_, forever, when)
+import           Control.Monad                 (foldM, forM_, forever, when)
 import           Control.Monad.IO.Class        (liftIO)
 import           Data.Functor
 import           Data.Map                      (Map)
@@ -33,7 +34,7 @@ import           Data.Maybe                    (fromMaybe, listToMaybe)
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
-import           Data.Time                     (NominalDiffTime)
+import           Data.Time                     (NominalDiffTime, UTCTime)
 import qualified Data.Time                     as Time
 import           Debug.Trace                   (traceShowId)
 import qualified FeedGipeda.Config             as Config
@@ -59,20 +60,28 @@ import           System.FilePath               (equalFilePath, takeDirectory)
 import qualified System.FSNotify               as FS
 
 
-finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> Set Repo -> IO ()
-finalizeRepos lock paths deployment activeRepos repos =
-  forM_ (Set.toList repos) $ \repo -> Lock.with lock $
-    Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
+finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> (UTCTime, Set Repo) -> Map Repo UTCTime -> IO (Map Repo UTCTime)
+finalizeRepos lock paths deployment activeRepos (timestamp, repos) lastGenerated =
+  foldM finalizeRepo lastGenerated (Set.toList repos)
+    where
+      finalizeRepo lastGenerated repo = Lock.with lock $
+        case Map.lookup repo lastGenerated of
+          Just lg | lg > timestamp -> return lastGenerated
+          _ -> do
+            newLG <- Time.getCurrentTime
+            -- TODO: parallelize the gipeda step
+            Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
+            return (Map.insert repo newLG lastGenerated)
+
+
 
 
 readConfigFileRepos :: FS.Event -> IO (Maybe (Set Repo))
+readConfigFileRepos (FS.Removed _ _) = return (Just Set.empty)
 readConfigFileRepos evt =
-  case evt of
-    FS.Removed _ _ -> return (Just Set.empty)
-    _ ->
-      Config.decodeFile (FS.eventPath evt) >>= either
-        (\err -> logWarn err >> return Nothing)
-        (return . Just . Config.repos)
+  Config.decodeFile (FS.eventPath evt) >>= either
+    (\err -> logWarn err >> return Nothing)
+    (return . Just . Config.repos)
 
 
 accumDiff
@@ -88,12 +97,15 @@ updateCommitQueue queue repo = do
   CommitQueue.updateRepoBacklog queue repo backlog
 
 
-fetchRepos :: Set Repo -> IO (Set Repo)
-fetchRepos repos = mapConcurrently fetch (Set.toList repos) >> return repos
-  where
-    fetch repo = do
-      logInfo ("Syncing " ++ Repo.shortName repo)
-      GitShell.sync repo
+fetchRepos :: Set Repo -> IO (UTCTime, Set Repo)
+fetchRepos repos = do
+  mapConcurrently fetch (Set.toList repos)
+  timestamp <- Time.getCurrentTime -- 'last modified'
+  return (timestamp, repos)
+    where
+      fetch repo = do
+        logInfo ("Syncing " ++ Repo.shortName repo)
+        GitShell.sync repo
 
 
 periodically :: NominalDiffTime -> Banana.MomentIO (Banana.Event ())
@@ -119,11 +131,22 @@ repoOfFileEvent
   :: FilePath
   -> Banana.Behavior (Set Repo)
   -> Banana.Event FS.Event
-  -> Banana.MomentIO (Banana.Event Repo)
+  -> Banana.MomentIO (Banana.Event (UTCTime, Repo))
 repoOfFileEvent cwd activeRepos fileEvents =
-  Banana.filterJust <$> Banana.mapEventIO
-    id
-    (File.repoOfPath cwd <$> activeRepos <@> (FS.eventPath <$> fileEvents))
+  Banana.filterJust <$> Banana.mapEventIO id timestampedRepos
+    where
+      timestampedRepos =
+        reverseRoute <$> activeRepos <@> fileEvents
+      reverseRoute repos evt =
+        ((,) (FS.eventTime evt) <$>) <$> File.repoOfPath cwd repos (FS.eventPath evt)
+
+
+accumEM
+  :: (Monad m, Banana.MonadMoment mom)
+  => a
+  -> Banana.Event (a -> m a)
+  -> mom (Banana.Event (m a))
+accumEM acc fs = Banana.accumE (return acc) ((=<<) <$> fs)
 
 
 {-| See the module docs. This function builds up the FRP network with primitives
@@ -189,9 +212,12 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       benchmarkedRepos <- repoOfFileEvent cwd activeReposB benchmarks
 
       -- Sink: produce the appropriate backlog and deploy
-      let reposToFinish = Banana.unionWith Set.union fetchedRepos (Set.singleton <$> benchmarkedRepos)
+      let unite (t1, r1) (t2, r2) = (min t1 t2, Set.union r1 r2)
+      let reposToFinish = Banana.unionWith unite fetchedRepos (second Set.singleton <$> benchmarkedRepos)
       finalizeLock <- liftIO Lock.new
-      Banana.reactimate (finalizeRepos finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
+      ios <- accumEM Map.empty (finalizeRepos finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
+      Banana.mapEventIO id ios
+      Banana.reactimate ((>> return ()) <$> ios)
 
       -- Source: Backlog changes
       backlogs <- watchTree cwd (File.isBacklog cwd)
@@ -202,7 +228,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       --       provided we are in --one-shot mode.
       --   TODO: This exits prematurely when we start with a repo with an empty
       --         backlog regardless of other repos with non-empty backlogs.
-      queueEmpty <- Banana.mapEventIO (updateCommitQueue commitQueue) backlogRepos
+      queueEmpty <- Banana.mapEventIO (updateCommitQueue commitQueue) (snd <$> backlogRepos)
       let doExit = when (mode == Once) (Event.set exit)
       Banana.reactimate ((`when` doExit) <$> queueEmpty)
 

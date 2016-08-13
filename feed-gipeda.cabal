@@ -101,6 +101,8 @@ test-suite test
   other-modules:       Acceptance
                      , Acceptance.Files
                      , Acceptance.Driver
+                     , Unit
+                     , Unit.CommitQueue
   build-depends:       base >= 4.6 && < 5
                      , tasty
                      , tasty-quickcheck
