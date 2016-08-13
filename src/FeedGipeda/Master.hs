@@ -217,7 +217,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       finalizeLock <- liftIO Lock.new
       ios <- accumEM Map.empty (finalizeRepos finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
       Banana.mapEventIO id ios
-      Banana.reactimate ((>> return ()) <$> ios)
+      Banana.reactimate (void <$> ios)
 
       -- Source: Backlog changes
       backlogs <- watchTree cwd (File.isBacklog cwd)

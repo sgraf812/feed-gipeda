@@ -6,6 +6,7 @@ module FeedGipeda.Master.CommitQueue
   ) where
 
 
+import           Control.Applicative
 import           Control.Concurrent.Event (Event)
 import qualified Control.Concurrent.Event as Event
 import           Control.Concurrent.MVar
