@@ -7,6 +7,7 @@ module FeedGipeda.Prelude
   ) where
 
 
+import           Control.Applicative
 import qualified Control.Logging        as Logging
 import           Control.Monad.IO.Class
 import qualified Data.Text              as Text
