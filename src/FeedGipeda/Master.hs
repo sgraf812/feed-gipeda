@@ -18,6 +18,7 @@ module FeedGipeda.Master
 
 
 import           Control.Concurrent            (forkIO, threadDelay)
+import           Control.Concurrent.Async      (mapConcurrently)
 import           Control.Concurrent.Event      (Event)
 import qualified Control.Concurrent.Event      as Event
 import           Control.Concurrent.Lock       (Lock)
@@ -85,6 +86,14 @@ updateCommitQueue :: CommitQueue -> Repo -> IO Bool
 updateCommitQueue queue repo = do
   backlog <- File.readBacklog repo
   CommitQueue.updateRepoBacklog queue repo backlog
+
+
+fetchRepos :: Set Repo -> IO (Set Repo)
+fetchRepos repos = mapConcurrently fetch (Set.toList repos) >> return repos
+  where
+    fetch repo = do
+      logInfo ("Syncing " ++ Repo.shortName repo)
+      GitShell.sync repo
 
 
 periodically :: NominalDiffTime -> Banana.MomentIO (Banana.Event ())
@@ -173,15 +182,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
             return (Banana.unionWith const (RepoDiff.compute Set.empty <$> activeReposB <@ ticks) diffsWithoutRefresh)
 
       -- Fetch every added ('dirty') repository, delay until fetch is complete
-      -- TODO: parallelize and/or get rid of forM_ somehow
-      fetchedRepos <-
-        Banana.mapEventIO
-          (\added -> do
-            forM_ (Set.toList added) $ \repo -> do
-              logInfo ("Syncing " ++ Repo.shortName repo)
-              GitShell.sync repo
-            return added)
-          (RepoDiff.added <$> diffs)
+      fetchedRepos <- Banana.mapEventIO fetchRepos (RepoDiff.added <$> diffs)
 
       -- Source: Changed benchmark CSV files
       benchmarks <- watchTree cwd (File.isBenchmarkCSV cwd)
