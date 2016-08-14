@@ -32,6 +32,7 @@ extra-deps:
 - unix-time-0.3.6
 - vector-0.11.0.0
 - yaml-0.8.12
+- SafeSemaphore-0.10.1
 
 # Override default flag values for local packages and extra-deps
 flags:
