@@ -17,6 +17,7 @@ module FeedGipeda.Master
   ) where
 
 
+import           Control.Applicative
 import           Control.Arrow                 (second)
 import           Control.Concurrent            (forkIO, threadDelay)
 import           Control.Concurrent.Async      (mapConcurrently)
@@ -28,7 +29,6 @@ import           Control.Logging               as Logging
 import           Control.Monad                 (foldM, forM_, forever, unless,
                                                 when)
 import           Control.Monad.IO.Class        (liftIO)
-import           Data.Functor
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe, listToMaybe)
