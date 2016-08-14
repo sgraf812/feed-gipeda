@@ -83,13 +83,13 @@ oneShot = testGroup "one-shot mode"
       (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir Nothing
       assertNormalExit handle stdout stderr
-      assertSiteFolderComplete (path </> "benchmark-test-6085726404018277061" </> "site")
+      assertSiteFolderComplete (path </> "feed-gipeda-test-11018374512395291872" </> "site")
   , testCase "watching a single repo with deployment" $ runManaged $ do
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
       (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir (Just deploymentDir)
       assertNormalExit handle stdout stderr
-      assertSiteFolderComplete (deploymentDir </> "sgraf812" </> "benchmark-test")
+      assertSiteFolderComplete (deploymentDir </> "sgraf812" </> "feed-gipeda-test")
   -- Test with multiple repos in config? There shouldn't be any new code paths.
   ]
 
@@ -115,7 +115,7 @@ daemon = testGroup "daemon mode"
       (path, stdout, stderr, handle) <-
         Driver.withDaemonInTmpDir (Just deploymentDir) 5 config
       assertReactsToChange handle stdout stderr deploymentDir
-        (Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/benchmark-test"))
+        (Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/feed-gipeda-test"))
   ]
 
 
@@ -237,14 +237,13 @@ assertSiteFolderComplete site = do
   assertNotEqual "should produce some non-empty result files" [] nonEmptyCsvs
 
   -- Gipeda files
-  jsons <- liftIO $ filesInDirWithExt ".json" (site </> "out" </> "graphs" </> "benchmarks" </> "fib")
+  jsons <- liftIO $ filesInDirWithExt ".json" (site </> "out" </> "graphs" </> "stub")
   assertNotEqual "should produce some json data through gipeda" [] (filter ((== ".json") . takeExtension) jsons)
 
 
 filesInDirWithExt :: String -> FilePath -> IO [FilePath]
 filesInDirWithExt ext dir =
   map (dir </>) . filter ((== ext) . takeExtension) <$> getDirectoryContents dir
-
 
 
 assertNotEqual

@@ -25,7 +25,8 @@ import qualified Control.Concurrent.Event      as Event
 import           Control.Concurrent.Lock       (Lock)
 import qualified Control.Concurrent.Lock       as Lock
 import           Control.Logging               as Logging
-import           Control.Monad                 (foldM, forM_, forever, when)
+import           Control.Monad                 (foldM, forM_, forever, unless,
+                                                when)
 import           Control.Monad.IO.Class        (liftIO)
 import           Data.Functor
 import           Data.Map                      (Map)
@@ -60,20 +61,28 @@ import           System.FilePath               (equalFilePath, takeDirectory)
 import qualified System.FSNotify               as FS
 
 
-finalizeRepos :: Lock -> Paths -> Deployment -> Set Repo -> (UTCTime, Set Repo) -> Map Repo UTCTime -> IO (Map Repo UTCTime)
-finalizeRepos lock paths deployment activeRepos (timestamp, repos) lastGenerated =
+finalizeRepos
+  :: Event
+  -> Lock
+  -> Paths
+  -> Deployment
+  -> Set Repo
+  -> (UTCTime, Set Repo)
+  -> Map Repo UTCTime
+  -> IO (Map Repo UTCTime)
+finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos) lastGenerated =
   foldM finalizeRepo lastGenerated (Set.toList repos)
     where
       finalizeRepo lastGenerated repo = Lock.with lock $
         case Map.lookup repo lastGenerated of
           Just lg | lg > timestamp -> return lastGenerated
           _ -> do
+            Event.clear notFinalizing
             newLG <- Time.getCurrentTime
             -- TODO: parallelize the gipeda step
             Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
+            Event.set notFinalizing
             return (Map.insert repo newLG lastGenerated)
-
-
 
 
 readConfigFileRepos :: FS.Event -> IO (Maybe (Set Repo))
@@ -91,10 +100,12 @@ accumDiff repos =
   fst <$> Banana.mapAccum Set.empty ((\new old -> (RepoDiff.compute old new, new)) <$> repos)
 
 
-updateCommitQueue :: CommitQueue -> Repo -> IO Bool
-updateCommitQueue queue repo = do
+updateCommitQueue :: Event -> CommitQueue -> Repo -> IO ()
+updateCommitQueue notBenchmarking queue repo = do
+  Event.clear notBenchmarking
   backlog <- File.readBacklog repo
-  CommitQueue.updateRepoBacklog queue repo backlog
+  empty <- CommitQueue.updateRepoBacklog queue repo backlog
+  when empty (Event.set notBenchmarking)
 
 
 fetchRepos :: Set Repo -> IO (UTCTime, Set Repo)
@@ -160,7 +171,8 @@ checkForNewCommits
   -> IO ()
 checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> do
   cwd <- getCurrentDirectory
-  exit <- Event.new
+  notBenchmarking <- Event.new
+  notFinalizing <- Event.new
   start <- Event.new
 
   let
@@ -215,8 +227,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       let unite (t1, r1) (t2, r2) = (min t1 t2, Set.union r1 r2)
       let reposToFinish = Banana.unionWith unite fetchedRepos (second Set.singleton <$> benchmarkedRepos)
       finalizeLock <- liftIO Lock.new
-      ios <- accumEM Map.empty (finalizeRepos finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
-      Banana.mapEventIO id ios
+      ios <- accumEM Map.empty (finalizeRepos notFinalizing finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
       Banana.reactimate (void <$> ios)
 
       -- Source: Backlog changes
@@ -226,13 +237,15 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       -- Sink: Backlog changes are propagated to the commit queue, which should
       --       know how to handle them. Also we exit when the queue is empty,
       --       provided we are in --one-shot mode.
-      --   TODO: This exits prematurely when we start with a repo with an empty
-      --         backlog regardless of other repos with non-empty backlogs.
-      queueEmpty <- Banana.mapEventIO (updateCommitQueue commitQueue) (snd <$> backlogRepos)
-      let doExit = when (mode == Once) (Event.set exit)
-      Banana.reactimate ((`when` doExit) <$> queueEmpty)
+      Banana.reactimate (updateCommitQueue notBenchmarking commitQueue . snd <$> backlogRepos)
 
   network <- Banana.compile networkDescription
   Banana.actuate network
   Event.set start
-  Event.wait exit
+  let detectIdle = do
+        Event.wait notBenchmarking
+        threadDelay (100*1000) -- wait 100 ms, sample again
+        -- The next line might contain a race, but it's close enough
+        exit <- (&&) <$> Event.isSet notBenchmarking <*> Event.isSet notFinalizing
+        unless exit detectIdle
+  detectIdle
