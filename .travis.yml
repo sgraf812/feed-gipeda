@@ -110,6 +110,7 @@ matrix:
   - env: BUILD=stack ARGS="--resolver nightly"
 
 before_install:
+- ifconfig
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC
 
