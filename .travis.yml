@@ -112,7 +112,6 @@ matrix:
   - env: BUILD=stack ARGS="--resolver nightly"
 
 before_install:
-- ifconfig
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC
 
@@ -148,6 +147,7 @@ install:
 - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
+  ifconfig
   set -ex
   case "$BUILD" in
     stack)
