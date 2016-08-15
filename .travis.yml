@@ -2,7 +2,7 @@
 # named .travis.yml
 
 # Use new container infrastructure to enable caching
-sudo: false
+sudo: true
 
 # Choose a lightweight base image; we provide our own build tools.
 language: node_js
@@ -148,7 +148,8 @@ install:
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
   set -ex
-  ifconfig eth0 multicast
+  ifconfig
+  sudo ifconfig eth0 multicast
   case "$BUILD" in
     stack)
       stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
