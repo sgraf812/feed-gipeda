@@ -62,33 +62,25 @@ tests = testGroup "Acceptance tests"
 
 check :: TestTree
 check = testGroup "check"
-  [ testCase "malformed file exits with error" $ runManaged $ do
-      (_, _, stderr, handle) <-
-        Files.withMalformedConfig >>= Driver.withCheckInTmpDir
-      exitCode <- waitForStreamingProcess handle
-      liftIO $ assertNotEqual "exited successfully" ExitSuccess exitCode
-      liftIO $ stderr $= CB.lines $$ do
-        line <- await
-        maybe (return ()) (liftIO . assertBool "no YAML error" . not . BS.isInfixOf "YAML") line
-  , testCase "well-formed file exits successfully" $ runManaged $ do
-      (_, stdout, stderr, handle) <-
+  [ testCase "well-formed file exits successfully" $ runManaged $ do
+      (_, handle) <-
         Files.withWellFormedConfig >>= Driver.withCheckInTmpDir
-      assertNormalExit handle stdout stderr
+      assertNormalExit handle
   ]
 
 
 oneShot :: TestTree
 oneShot = testGroup "one-shot mode"
   [ testCase "watching a single repo produces site/ files" $ runManaged $ do
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir Nothing
-      assertNormalExit handle stdout stderr
+      assertNormalExit handle
       assertSiteFolderComplete (path </> "feed-gipeda-test-11018374512395291872" </> "site")
   , testCase "watching a single repo with deployment" $ runManaged $ do
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Files.withWellFormedConfig >>= Driver.withOneShotInTmpDir (Just deploymentDir)
-      assertNormalExit handle stdout stderr
+      assertNormalExit handle
       assertSiteFolderComplete (deploymentDir </> "sgraf812" </> "feed-gipeda-test")
   -- Test with multiple repos in config? There shouldn't be any new code paths.
   ]
@@ -100,9 +92,9 @@ daemon = testGroup "daemon mode"
       (config, handle) <- managed (withSystemTempFile "feed-gipeda.yaml" . curry)
       liftIO (hClose handle)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Driver.withDaemonInTmpDir (Just deploymentDir) 3600 config
-      assertReactsToChange handle stdout stderr deploymentDir
+      assertReactsToChange handle deploymentDir
         (BS.writeFile config Files.wellFormedConfig)
   , testCase "adding commits to a repo under watch should trigger benchmarks" $ runManaged $ do
       liftIO (threadDelay 10000000) -- terminateProcess doesn't release the TCP ports, so we have to wait for the OS to catch up
@@ -112,9 +104,9 @@ daemon = testGroup "daemon mode"
       liftIO (hPutStrLn h ("- file://" ++ repo))
       liftIO (hClose h)
       deploymentDir <- managed (withSystemTempDirectory "feed-gipeda")
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Driver.withDaemonInTmpDir (Just deploymentDir) 5 config
-      assertReactsToChange handle stdout stderr deploymentDir
+      assertReactsToChange handle deploymentDir
         (Files.makeCloneOf repo (fromJust $ parseURI "https://github.com/sgraf812/feed-gipeda-test"))
   ]
 
@@ -122,12 +114,12 @@ daemon = testGroup "daemon mode"
 parallelization :: TestTree
 parallelization = testGroup "parallelization"
   [ testCase "does not benchmark in master mode" $ runManaged $ do
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
       withAssertNotExit handle
       assertCsvFilesDontChangeWithin 100 path
   , testCase "can distribute work on slave nodes" $ runManaged $ do
-      (path, stdout, stderr, handle) <-
+      (path, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
       withAssertNotExit handle
       spawnSlave 12346
@@ -138,21 +130,18 @@ parallelization = testGroup "parallelization"
   ]
   where
     spawnSlave port = do
-      (_, _, h) <- Driver.withSlave port
+      h <- Driver.withSlave port
       withAssertNotExit h
 
 
 assertReactsToChange
   :: MonadIO io
   => StreamingProcessHandle
-  -> Source IO ByteString
-  -> Source IO ByteString
   -> String
   -> IO ()
   -> io ()
-assertReactsToChange handle stdout stderr deploymentDir changeAction = liftIO $ runManaged $ do
+assertReactsToChange handle deploymentDir changeAction = liftIO $ runManaged $ do
   withAssertNotExit handle
-  withAssertNoOutput stderr "stderr"
   liftIO (threadDelay 5000000) -- ouch
   liftIO changeAction
   assertCsvFilesChangeWithin 100 deploymentDir
@@ -190,12 +179,8 @@ withAssertNoOutput content name = do
 
 assertNormalExit
   :: StreamingProcessHandle
-  -> Source IO ByteString
-  -> Source IO ByteString
   -> Managed ()
-assertNormalExit handle stdout stderr = do
-  withAssertNoOutput stdout "stdout"
-  withAssertNoOutput stderr "stderr"
+assertNormalExit handle = do
   liftIO $ do
     exitCode <- waitForStreamingProcess handle
     threadDelay 50 -- So that failures due to stdout/stderr have precedence

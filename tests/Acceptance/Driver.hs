@@ -19,8 +19,8 @@ import           Data.ByteString            (ByteString)
 import           Data.Conduit               (Source, ($=), (=$=))
 import qualified Data.Conduit.List          as CL
 import           Data.Conduit.Process       (ClosedStream (..), CreateProcess,
-                                             InputSource, OutputSink,
-                                             StreamingProcessHandle,
+                                             Inherited (..), InputSource,
+                                             OutputSink, StreamingProcessHandle,
                                              readCreateProcessWithExitCode,
                                              streamingProcess,
                                              streamingProcessHandleRaw,
@@ -49,7 +49,7 @@ defaultConfig config =
 
 withCheckInTmpDir
   :: FilePath
-  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+  -> Managed (FilePath, StreamingProcessHandle)
 withCheckInTmpDir config =
   withExecuteInTmpDir (defaultConfig config) { check = True }
 
@@ -57,7 +57,7 @@ withCheckInTmpDir config =
 withOneShotInTmpDir
   :: Maybe FilePath
   -> FilePath
-  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+  -> Managed (FilePath, StreamingProcessHandle)
 withOneShotInTmpDir deploymentDir config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
@@ -68,7 +68,7 @@ withDaemonInTmpDir
   :: Maybe FilePath
   -> Int
   -> FilePath
-  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+  -> Managed (FilePath, StreamingProcessHandle)
 withDaemonInTmpDir deploymentDir dt config =
   withExecuteInTmpDir (defaultConfig config)
     { deploymentDir = deploymentDir
@@ -79,22 +79,22 @@ withDaemonInTmpDir deploymentDir dt config =
 withMasterInTmpDir
   :: Int
   -> FilePath
-  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+  -> Managed (FilePath, StreamingProcessHandle)
 withMasterInTmpDir port config =
   withExecuteInTmpDir (defaultConfig config)
     { masterPort = Just port
     }
 
 
-withSlave :: Int -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+withSlave :: Int -> Managed StreamingProcessHandle
 withSlave port =
   withProcess (proc "feed-gipeda" ["--slave", "localhost:" ++ show port])
 
 
-withProcess :: CreateProcess -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+withProcess :: CreateProcess -> Managed StreamingProcessHandle
 withProcess cp = do
-  (ClosedStream, stdout, stderr, handle) <- managed (bracket acquire release)
-  return (stdout, stderr, handle)
+  (ClosedStream, Inherited, Inherited, handle) <- managed (bracket acquire release)
+  return handle
     where
       acquire =
         streamingProcess cp
@@ -104,7 +104,7 @@ withProcess cp = do
 
 withExecuteInTmpDir
   :: Args
-  -> Managed (FilePath, Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+  -> Managed (FilePath, StreamingProcessHandle)
 withExecuteInTmpDir Args{..} = do
   let
     whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
@@ -113,6 +113,7 @@ withExecuteInTmpDir Args{..} = do
 
     args :: [String]
     args = execWriter $ do
+      tell ["-v"]
       tell ["--config", config]
       when check (tell ["--check"])
       whenJust deploymentDir $ \r -> tell ["--deploy-to", r]
@@ -121,5 +122,5 @@ withExecuteInTmpDir Args{..} = do
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")
-  (stdout, stderr, handle) <- withProcess (proc "feed-gipeda" args) { cwd = Just path }
-  return (path, stdout, stderr, handle)
+  handle<- withProcess (proc "feed-gipeda" args) { cwd = Just path }
+  return (path, handle)
