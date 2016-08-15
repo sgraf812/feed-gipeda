@@ -59,28 +59,28 @@ matrix:
   # variable, such as using --stack-yaml to point to a different file.
   - env: BUILD=stack ARGS=""
     compiler: ": #stack default"
-    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
     compiler: ": #stack 7.8.4"
-    addons: {apt: {packages: [ghc-7.8.4, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.8.4, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-3.yaml"
     compiler: ": #stack 7.10.2"
-    addons: {apt: {packages: [ghc-7.10.2, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.10.2, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-5.yaml"
     compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml"
     compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools], sources: [hvr-ghc]}}
 
   # Nightly builds are allowed to fail
   - env: BUILD=stack ARGS="--resolver nightly"
     compiler: ": #stack nightly"
-    addons: {apt: {packages: [libgmp,libgmp-dev, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync]}}
+    addons: {apt: {packages: [libgmp,libgmp-dev, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync, net-tools]}}
 
   # Build on OS X in addition to Linux
   - env: BUILD=stack ARGS=""
