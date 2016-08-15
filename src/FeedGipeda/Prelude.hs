@@ -35,4 +35,4 @@ readFileMaybe file = liftIO $ do
   exists <- doesFileExist file
   if exists
     then Just <$> readFile file
-    else return Nothing
+    else logInfo ("Could not read file " ++ file) >> return Nothing
