@@ -56,6 +56,7 @@ isBacklog cwd path =
 
 writeBenchmarkCSV :: Repo -> SHA -> String -> IO ()
 writeBenchmarkCSV repo commit result = do
+  logInfo "Writing benchmark CSV file to " ++ (resultsDir </> commit <.> "csv")
   cwd <- getCurrentDirectory
   resultsDir <- Repo.resultsDir repo
   createDirectoryIfMissing True resultsDir
