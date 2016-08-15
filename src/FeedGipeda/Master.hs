@@ -232,7 +232,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       let reposToFinish = Banana.unionWith unite fetchedRepos (second Set.singleton <$> benchmarkedRepos)
       finalizeLock <- liftIO Lock.new
       ios <- accumEM Map.empty (finalizeRepos notFinalizing finalizeLock paths deployment <$> activeReposB <@> reposToFinish)
-      Banana.reactimate (void <$> ios)
+      Banana.reactimate ((>>= logInfo . show) <$> ios)
 
       -- Source: Backlog changes
       backlogs <- watchTree cwd (File.isBacklog cwd)
