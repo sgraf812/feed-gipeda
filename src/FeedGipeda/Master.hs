@@ -72,7 +72,7 @@ finalizeRepos
   -> Map Repo UTCTime
   -> IO (Map Repo UTCTime)
 finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos) lastGenerated =
-  foldM finalizeRepo lastGenerated (Set.toList repos)
+  foldM finalizeRepo lastGenerated (Set.toList repos) >> logInfo "done"
     where
       finalizeRepo lastGenerated repo = Lock.with lock $
         case Map.lookup repo lastGenerated of
@@ -82,8 +82,8 @@ finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos)
             newLG <- Time.getCurrentTime
             -- TODO: parallelize the gipeda step
             Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
-            logInfo ("Finalized " ++ Repo.shortName repo)
             Event.set notFinalizing
+            logInfo ("Finalized " ++ Repo.shortName repo)
             return (Map.insert repo newLG lastGenerated)
 
 
