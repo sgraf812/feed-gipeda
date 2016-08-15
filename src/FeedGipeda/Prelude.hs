@@ -34,5 +34,9 @@ readFileMaybe :: MonadIO io => FilePath -> io (Maybe String)
 readFileMaybe file = liftIO $ do
   exists <- doesFileExist file
   if exists
-    then Just <$> readFile file
+    then do
+      s <- readFile file
+      logInfo ("Read file " ++ file ++ ". Contents:")
+      mapM_ logInfo (take 10 (lines s))
+      return (Just s)
     else logInfo ("Could not read file " ++ file) >> return Nothing
