@@ -61,6 +61,7 @@ writeBenchmarkCSV repo commit result = do
   cwd <- getCurrentDirectory
   createDirectoryIfMissing True resultsDir
   writeFile (resultsDir </> commit <.> "csv") result
+  readFile (resultsDir </> commit <.> "csv") >>= logInfo 
 
 
 isBenchmarkCSV :: FilePath -> FilePath -> Bool
