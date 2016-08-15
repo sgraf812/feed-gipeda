@@ -82,6 +82,7 @@ finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos)
             newLG <- Time.getCurrentTime
             -- TODO: parallelize the gipeda step
             Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
+            logInfo ("Finalized " ++ Repo.shortName repo)
             Event.set notFinalizing
             return (Map.insert repo newLG lastGenerated)
 
