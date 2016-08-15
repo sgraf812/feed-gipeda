@@ -149,7 +149,6 @@ install:
 - |
   set -ex
   ifconfig
-  sudo ifconfig eth0 multicast
   case "$BUILD" in
     stack)
       stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
