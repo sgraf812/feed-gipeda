@@ -185,6 +185,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       liftIO $ FS.watchDir mgr (takeDirectory path) (equalFilePath path . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
         fire evt
+        logDebug ("Handled evt " ++ show evt)
       return event
 
     watchTree :: FilePath -> (FilePath -> Bool) -> Banana.MomentIO (Banana.Event FS.Event)
@@ -193,6 +194,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       liftIO $ FS.watchTree mgr path (predicate . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
         fire evt
+        logDebug ("Handled evt " ++ show evt)
       return event
 
     networkDescription :: Banana.MomentIO ()
