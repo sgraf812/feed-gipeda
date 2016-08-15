@@ -25,7 +25,7 @@ import           Control.Concurrent.Event      (Event)
 import qualified Control.Concurrent.Event      as Event
 import           Control.Concurrent.Lock       (Lock)
 import qualified Control.Concurrent.Lock       as Lock
-import           Control.Exception             (onException)
+import           Control.Exception             (finally)
 import           Control.Logging               as Logging
 import           Control.Monad                 (foldM, forM_, forever, unless,
                                                 when)
@@ -184,7 +184,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       path <- liftIO (canonicalizePath path')
       liftIO $ FS.watchDir mgr (takeDirectory path) (equalFilePath path . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
-        fire evt `onException` logWarn "Some exception"
+        fire evt `finally` logWarn "Some exception"
         logDebug ("Handled evt " ++ show evt)
       return event
 
@@ -193,7 +193,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       (event, fire) <- Banana.newEvent
       liftIO $ FS.watchTree mgr path (predicate . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
-        fire evt `onException` logWarn "Some exception"
+        fire evt `finally` logWarn "Some exception"
         logDebug ("Handled evt " ++ show evt)
       return event
 
