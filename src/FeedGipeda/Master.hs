@@ -25,6 +25,7 @@ import           Control.Concurrent.Event      (Event)
 import qualified Control.Concurrent.Event      as Event
 import           Control.Concurrent.Lock       (Lock)
 import qualified Control.Concurrent.Lock       as Lock
+import           Control.Exception             (onException)
 import           Control.Logging               as Logging
 import           Control.Monad                 (foldM, forM_, forever, unless,
                                                 when)
@@ -72,7 +73,7 @@ finalizeRepos
   -> Map Repo UTCTime
   -> IO (Map Repo UTCTime)
 finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos) lastGenerated =
-  foldM finalizeRepo lastGenerated (Set.toList repos) >>= \r -> logInfo "done" >> return r
+  foldM finalizeRepo lastGenerated (Set.toList repos)
     where
       finalizeRepo lastGenerated repo = Lock.with lock $
         case Map.lookup repo lastGenerated of
@@ -83,7 +84,6 @@ finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos)
             -- TODO: parallelize the gipeda step
             Finalize.regenerateAndDeploy (gipeda paths) deployment activeRepos repo
             Event.set notFinalizing
-            logInfo ("Finalized " ++ Repo.shortName repo)
             return (Map.insert repo newLG lastGenerated)
 
 
@@ -184,7 +184,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       path <- liftIO (canonicalizePath path')
       liftIO $ FS.watchDir mgr (takeDirectory path) (equalFilePath path . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
-        fire evt
+        fire evt `onException` logWarn "Some exception"
         logDebug ("Handled evt " ++ show evt)
       return event
 
@@ -193,7 +193,7 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
       (event, fire) <- Banana.newEvent
       liftIO $ FS.watchTree mgr path (predicate . FS.eventPath) $ \evt -> do
         logDebug ("File changed: " ++ show evt)
-        fire evt
+        fire evt `onException` logWarn "Some exception"
         logDebug ("Handled evt " ++ show evt)
       return event
 
