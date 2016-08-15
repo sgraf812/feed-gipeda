@@ -50,7 +50,7 @@ data GipedaSettings = GipedaSettings
   -}
   , limitRecent         :: Int
   -- ^ Number of commits shown on the start page.
-  , start               :: SHA
+  , start               :: Maybe SHA
   {-^ Commit hash of the first commit to take into account. Useful to limit
       the scope of gipeda in projects with a large history.
   -}
@@ -209,7 +209,7 @@ settingsForRepo repo = do
         <*> "revisionInfo" ?? printf "<a href=\"%s/commit/{{rev}}\">View Diff</a>" (Repo.uri repo)
         <*> "diffLink" ?? printf "%s/compare/{{base}}...{{rev}}" (Repo.uri repo)
         <*> "limitRecent" ?? 20
-        <*> "start" ?? fromMaybe "HEAD" firstCommit -- "HEAD" doesn't really work, but better than crashing?! We shouldn't execute gipeda on an empty repository after all
+        <*> ((Just <$> obj .: "start") <|> pure firstCommit)
         <*> "interestingTags" ?? "*"
         <*> "interestingBranches" ?? "*"
         <*> "benchmarkScript" ?? "cloben"
