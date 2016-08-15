@@ -50,10 +50,10 @@ executeIn cwd executable args = do
     ExitFailure _ -> logDebug stderr >> logDebug stdout
     _ -> return ()
   -- That's too much even for debug
-  --logDebug "stdout:"
-  --logDebug stdout
-  --logDebug "stderr:"
-  --logDebug stderr
+  logDebug "stdout:"
+  mapM_ logDebug (take 20 (lines stdout))
+  logDebug "stderr:"
+  mapM_ logDebug ((take 20 . lines) stderr)
   return stdout
 
 
