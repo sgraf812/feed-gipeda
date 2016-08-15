@@ -72,7 +72,7 @@ finalizeRepos
   -> Map Repo UTCTime
   -> IO (Map Repo UTCTime)
 finalizeRepos notFinalizing lock paths deployment activeRepos (timestamp, repos) lastGenerated =
-  foldM finalizeRepo lastGenerated (Set.toList repos) >> logInfo "done"
+  foldM finalizeRepo lastGenerated (Set.toList repos) >>= \r -> logInfo "done" >> return r
     where
       finalizeRepo lastGenerated repo = Lock.with lock $
         case Map.lookup repo lastGenerated of
