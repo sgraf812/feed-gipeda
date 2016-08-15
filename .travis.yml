@@ -173,6 +173,7 @@ script:
         cd gipeda
         git reset --hard 4e59ed2b943a99620c9433fc75b2ab70b122e39d # some patch after 3.2.1 where the gitRange bug is fixed
         stack install
+        cd ..
 
         stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps # --test-arguments="--pattern **Unit"
       fi
