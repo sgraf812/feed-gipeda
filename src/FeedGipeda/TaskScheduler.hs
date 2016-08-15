@@ -229,7 +229,7 @@ start backend awaitTask = do
       slaveDiscovery backend queue = forever $ do
         self <- getSelfNode
         slaves <- Set.fromList . map processNodeId <$> findSlaves backend
-        --say $ show slaves
+        say $ show slaves
         cast queue (SlaveListChanged (Set.delete self slaves))
 
 
