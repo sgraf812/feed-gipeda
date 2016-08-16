@@ -1,5 +1,5 @@
 name:                feed-gipeda
-version:             0.1.0.4
+version:             0.2.0.0
 synopsis:            CI service around gipeda
 description:
   A service for easy handling of multiple repositories with <https://hackage.haskell.org/package/gipeda gipeda>.
@@ -22,7 +22,10 @@ copyright:           2016 Sebastian Graf
 category:            Benchmarking
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:    assets/default_index.html
+tested-with:           GHC == 7.8.4
+                     , GHC == 7.10.2
+                     , GHC == 7.10.3
+extra-source-files:    assets/*
                      , README.md
 
 library
