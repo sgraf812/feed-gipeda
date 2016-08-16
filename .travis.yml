@@ -2,7 +2,7 @@
 # named .travis.yml
 
 # We can't use the container-based architecture because of our acceptance tests using UDP multicast
-sudo: true
+sudo: false
 
 # Choose a lightweight base image; we provide our own build tools.
 language: c
@@ -175,7 +175,7 @@ script:
         stack install
         cd ..
 
-        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps # --test-arguments="--pattern **Unit"
+        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern !Acceptance/"
       fi
       ;;
     cabal)
