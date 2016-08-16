@@ -249,4 +249,6 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
         -- The next line might contain a race, but it's close enough
         exit <- (&&) <$> Event.isSet notBenchmarking <*> Event.isSet notFinalizing
         unless exit detectIdle
-  detectIdle
+  case mode of
+    Once -> detectIdle
+    WatchForChanges _ -> Event.new >>= Event.wait -- block indefinitely
