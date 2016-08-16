@@ -48,6 +48,10 @@ debugTests :: Bool
 debugTests = True -- cringe
 
 
+waitSeconds :: Int
+waitSeconds = 40
+
+
 tests ::  TestTree
 tests = testGroup "Acceptance tests"
   [ testCase "has feed-gipeda in $PATH" $ do
@@ -125,7 +129,7 @@ parallelization = testGroup "parallelization"
       (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
       withAssertNotExit handle
-      assertCsvFilesDontChangeWithin 100 path
+      assertCsvFilesDontChangeWithin waitSeconds path
   , testCase "can distribute work on slave nodes" $ runManaged $ do
       (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
@@ -134,7 +138,7 @@ parallelization = testGroup "parallelization"
       spawnSlave 12347
       spawnSlave 12348
       spawnSlave 12349
-      assertCsvFilesChangeWithin 100 path
+      assertCsvFilesChangeWithin waitSeconds path
   ]
   where
     spawnSlave port = do
@@ -155,7 +159,7 @@ assertReactsToChange handle stdout stderr deploymentDir changeAction = liftIO $ 
   withAssertNoOutput stderr "stderr"
   liftIO (threadDelay 5000000) -- ouch
   liftIO changeAction
-  assertCsvFilesChangeWithin 100 deploymentDir
+  assertCsvFilesChangeWithin waitSeconds deploymentDir
 
 
 catchAsyncException :: IO () -> IO ()
