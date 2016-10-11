@@ -46,6 +46,9 @@ matrix:
   - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22 HAPPYVER=1.19.5 ALEXVER=3.1.7
     compiler: ": #GHC 7.10.3"
     addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+  - env: BUILD=cabal GHCVER=8.0.1 CABALVER=1.24 HAPPYVER=1.19.5 ALEXVER=3.1.7
+    compiler: ": #GHC 8.0.1"
+    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
 
   # Build with the newest GHC and cabal-install. This is an accepted failure,
   # see below.
@@ -59,20 +62,20 @@ matrix:
     compiler: ": #stack default"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.8.4.yaml"
     compiler: ": #stack 7.8.4"
     addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-3.yaml"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.2.yaml"
     compiler: ": #stack 7.10.2"
     addons: {apt: {packages: [ghc-7.10.2, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-5.yaml"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.3.yaml"
     compiler: ": #stack 7.10.3"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml"
-    compiler: ": #stack 7.10.3"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-8.0.1.yaml"
+    compiler: ": #stack 8.0.1"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
   # Nightly builds are allowed to fail
@@ -85,20 +88,21 @@ matrix:
     compiler: ": #stack default osx"
     os: osx
 
+  - env: BUILD=stack ARGS=""
   - env: BUILD=stack ARGS="--stack-yaml=stack-lts-2.yaml"
     compiler: ": #stack 7.8.4 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-3.yaml"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.2.yaml"
     compiler: ": #stack 7.10.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-5.yaml"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.3.yaml"
     compiler: ": #stack 7.10.3 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--stack-yaml=stack-lts-6.yaml"
-    compiler: ": #stack 7.10.3 osx"
+  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-8.0.1.yaml"
+    compiler: ": #stack 8.0.1 osx"
     os: osx
 
   - env: BUILD=stack ARGS="--resolver nightly"
