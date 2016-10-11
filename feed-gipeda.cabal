@@ -25,6 +25,7 @@ cabal-version:       >=1.10
 tested-with:           GHC == 7.8.4
                      , GHC == 7.10.2
                      , GHC == 7.10.3
+                     , GHC == 8.0.1
 extra-source-files:    assets/default_index.html
                      , README.md
 
@@ -111,7 +112,8 @@ test-suite test
                      , tasty-quickcheck
                      , tasty-smallcheck
                      , tasty-hunit
-                     , tasty-hspec
+                     -- tasty-hspec-1.1 has broken bounds on hspec
+                     , tasty-hspec >= 1.1.1
                      , HUnit
                      , feed-gipeda
                      , temporary >= 1.1
