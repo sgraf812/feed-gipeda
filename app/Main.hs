@@ -7,6 +7,7 @@ import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor
 import           Data.List           (elemIndex)
+import           Data.Monoid         ((<>))
 import           FeedGipeda
 import           Options.Applicative
 import           System.Directory    (getAppUserDataDirectory)
