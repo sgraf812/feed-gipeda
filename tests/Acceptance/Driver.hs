@@ -86,9 +86,9 @@ withMasterInTmpDir port config =
     }
 
 
-withSlave :: Int -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
-withSlave port =
-  withProcess (proc "feed-gipeda" ["--slave", "localhost:" ++ show port])
+withSlave :: Int -> Int -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
+withSlave mp sp =
+  withProcess (proc "feed-gipeda" ["--slave", show sp ++ ":localhost:" ++ show mp])
 
 
 withProcess :: CreateProcess -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
@@ -117,7 +117,7 @@ withExecuteInTmpDir Args{..} = do
       when check (tell ["--check"])
       whenJust deploymentDir $ \r -> tell ["--deploy-to", r]
       whenJust watch $ \dt -> tell ["--watch", show dt]
-      whenJust masterPort $ \p -> tell ["--master", "localhost:" ++ show p]
+      whenJust masterPort $ \p -> tell ["--master", show p]
       return ()
 
   path <- managed (withSystemTempDirectory "feed-gipeda")

@@ -6,7 +6,7 @@ import           Control.Applicative
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor
-import           Data.List.Extra           (split)
+import           Data.List.Extra     (split)
 import           Data.Monoid         ((<>))
 import           FeedGipeda
 import           Options.Applicative
@@ -69,8 +69,8 @@ slave = do
     [sport, mhost, mport]->
       case (readMaybe sport, readMaybe mport) of
         (Just sp, Just mp) -> return (Slave sp (Endpoint mhost mp))
-        (Nothing, _) -> readerError "Slave port was not integral"
-        (_, Nothing) -> readerError "Master port was not integral"
+        (Nothing, _)       -> readerError "Slave port was not integral"
+        (_, Nothing)       -> readerError "Master port was not integral"
     _ -> readerError "Expected 3 sections separated by a colon"
 
 processRole :: Parser ProcessRole
@@ -82,8 +82,8 @@ processRole =
             <> help "Start in master mode, distributing work items. Identified via the given TCP port number."))
     <*> optional (option slave
           (long "slave"
-            <> metavar "ENDPOINT"
-            <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber)."))
+            <> metavar "PORT:HOST:PORT"
+            <> help "Start in slave mode, requesting work items from a master node. Identified via the given local slave port and the name and port of the master node."))
   where
     impl Nothing Nothing = Both 1337 1338
     impl (Just port) Nothing = Master port

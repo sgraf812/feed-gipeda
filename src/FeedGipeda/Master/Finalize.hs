@@ -48,7 +48,7 @@ executeIn cwd executable args = do
   logDebug (takeBaseName executable ++ ": " ++ show exitCode)
   case exitCode of
     ExitFailure _ -> logDebug stderr >> logDebug stdout
-    _ -> return ()
+    _             -> return ()
   -- That's too much even for debug
   --logDebug "stdout:"
   --logDebug stdout

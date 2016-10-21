@@ -9,6 +9,7 @@ module FeedGipeda.Master.File
   ) where
 
 
+import           Control.Concurrent  (threadDelay)
 import           Data.Char           (toLower)
 import           Data.Functor
 import           Data.List           (isSuffixOf)
@@ -59,6 +60,7 @@ writeBenchmarkCSV repo commit result = do
   cwd <- getCurrentDirectory
   resultsDir <- Repo.resultsDir repo
   createDirectoryIfMissing True resultsDir
+  threadDelay 1000
   writeFile (resultsDir </> commit <.> "csv") result
 
 

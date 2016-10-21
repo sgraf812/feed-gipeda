@@ -134,15 +134,15 @@ parallelization = testGroup "parallelization"
       (path, stdout, stderr, handle) <-
         Files.withWellFormedConfig >>= Driver.withMasterInTmpDir 12345
       withAssertNotExit handle
-      spawnSlave 12346
-      spawnSlave 12347
-      spawnSlave 12348
-      spawnSlave 12349
+      spawnSlave 12345 12346
+      spawnSlave 12345 12347
+      spawnSlave 12345 12348
+      spawnSlave 12345 12349
       assertCsvFilesChangeWithin waitSeconds path
   ]
   where
-    spawnSlave port = do
-      (_, _, h) <- Driver.withSlave port
+    spawnSlave mport sport = do
+      (_, _, h) <- Driver.withSlave mport sport
       withAssertNotExit h
 
 
