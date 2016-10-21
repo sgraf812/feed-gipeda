@@ -60,7 +60,7 @@ matrix:
   # variable, such as using --stack-yaml to point to a different file.
   - env: BUILD=stack ARGS=""
     compiler: ": #stack default"
-    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-8.0.1, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.8.4.yaml"
     compiler: ": #stack 7.8.4"
@@ -72,10 +72,6 @@ matrix:
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.3.yaml"
     compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
-
-  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-8.0.1.yaml"
-    compiler: ": #stack 8.0.1"
     addons: {apt: {packages: [ghc-7.10.3, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
   # Nightly builds are allowed to fail
@@ -99,10 +95,6 @@ matrix:
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.3.yaml"
     compiler: ": #stack 7.10.3 osx"
-    os: osx
-
-  - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-8.0.1.yaml"
-    compiler: ": #stack 8.0.1 osx"
     os: osx
 
   - env: BUILD=stack ARGS="--resolver nightly"
@@ -170,7 +162,7 @@ script:
       if [ `uname` = "Darwin" ]
       then
         # Installing gitlib is a pain on OS X because of text-icu, so no testing here.
-        stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps
+        stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps feed-gipeda
       else
         env STACK_YAML=stack-ghc-8.0.1.yaml stack install --install-ghc cloben-0.1.0.3 gipeda-0.3.2.2
         stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps feed-gipeda
