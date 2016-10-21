@@ -9,43 +9,35 @@ module FeedGipeda
   ) where
 
 
-import           Control.Arrow                                      (second)
-import           Control.Concurrent                                 (forkIO)
-import           Control.Concurrent.Chan                            (Chan,
-                                                                     newChan,
-                                                                     readChan,
-                                                                     writeChan)
-import           Control.Distributed.Process                        (Process,
-                                                                     RemoteTable,
-                                                                     liftIO,
-                                                                     say,
-                                                                     spawnLocal)
-import qualified Control.Distributed.Backend.P2P as P2P
-import           Control.Distributed.Process.Node                   (initRemoteTable,
-                                                                     runProcess)
-import           Control.Logging                                    as Logging
-import           Control.Monad                                      (forever,
-                                                                     void, when)
-import           Data.List                                          (elemIndex)
-import           Data.Maybe                                         (fromMaybe,
-                                                                     isJust)
-import           Data.Set                                           (Set)
-import           Data.Time                                          (NominalDiffTime)
-import qualified FeedGipeda.Config                                  as Config
-import qualified FeedGipeda.Gipeda                                  as Gipeda
-import           FeedGipeda.GitShell                                (SHA)
-import qualified FeedGipeda.Master                                  as Master
-import qualified FeedGipeda.Master.CommitQueue                      as CommitQueue
-import qualified FeedGipeda.Master.File                             as Master.File
+import           Control.Arrow                    (second)
+import           Control.Concurrent               (forkIO)
+import           Control.Concurrent.Chan          (Chan, newChan, readChan,
+                                                   writeChan)
+import qualified Control.Distributed.Backend.P2P  as P2P
+import           Control.Distributed.Process      (Process, RemoteTable, liftIO,
+                                                   say, spawnLocal)
+import           Control.Distributed.Process.Node (initRemoteTable, runProcess)
+import           Control.Logging                  as Logging
+import           Control.Monad                    (forever, void, when)
+import           Data.List                        (elemIndex)
+import           Data.Maybe                       (fromMaybe, isJust)
+import           Data.Set                         (Set)
+import           Data.Time                        (NominalDiffTime)
+import qualified FeedGipeda.Config                as Config
+import qualified FeedGipeda.Gipeda                as Gipeda
+import           FeedGipeda.GitShell              (SHA)
+import qualified FeedGipeda.Master                as Master
+import qualified FeedGipeda.Master.CommitQueue    as CommitQueue
+import qualified FeedGipeda.Master.File           as Master.File
 import           FeedGipeda.Prelude
-import           FeedGipeda.Repo                                    (Repo)
-import qualified FeedGipeda.TaskScheduler                           as TaskScheduler
-import qualified FeedGipeda.THGenerated                             as THGenerated
+import           FeedGipeda.Repo                  (Repo)
+import qualified FeedGipeda.TaskScheduler         as TaskScheduler
+import qualified FeedGipeda.THGenerated           as THGenerated
 import           FeedGipeda.Types
-import           Network.URI                                        (parseURI)
-import           System.Directory                                   (getAppUserDataDirectory)
-import           System.Exit                                        (exitSuccess)
-import           System.FilePath                                    ((</>))
+import           Network.URI                      (parseURI)
+import           System.Directory                 (getAppUserDataDirectory)
+import           System.Exit                      (exitSuccess)
+import           System.FilePath                  ((</>))
 
 
 remoteTable :: RemoteTable
@@ -69,7 +61,7 @@ feedGipeda
   -> IO ()
 feedGipeda paths cmd deployment role_ verbosity = do
   case verbosity of
-    Verbose -> Logging.setLogLevel Logging.LevelDebug
+    Verbose    -> Logging.setLogLevel Logging.LevelDebug
     NotVerbose -> Logging.setLogLevel Logging.LevelWarn
 
   case cmd of
@@ -81,7 +73,8 @@ feedGipeda paths cmd deployment role_ verbosity = do
         Just (Endpoint host port) -> do
           let
             run = if isBoth role_ then void . forkIO else id
-            toNodeId (Endpoint host port) = P2P.makeNodeId (host ++ show port)
+            toNodeId (Endpoint host port) =
+              P2P.makeNodeId (host ++ ":" ++ show port)
             master = toNodeId (masterEndpoint role_)
           run (TaskScheduler.work "localhost" (show port) master remoteTable)
         _ -> return ()

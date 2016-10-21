@@ -246,9 +246,12 @@ checkForNewCommits paths deployment mode commitQueue = FS.withManager $ \mgr -> 
   let detectIdle = do
         Event.wait notBenchmarking
         threadDelay (100*1000) -- wait 100 ms, sample again
+        putStrLn "checking for exit"
         -- The next line might contain a race, but it's close enough
         exit <- (&&) <$> Event.isSet notBenchmarking <*> Event.isSet notFinalizing
+        print exit
         unless exit detectIdle
+  print mode
   case mode of
-    Once -> detectIdle
+    Once              -> detectIdle
     WatchForChanges _ -> Event.new >>= Event.wait -- block indefinitely

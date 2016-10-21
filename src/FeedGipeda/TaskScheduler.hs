@@ -16,36 +16,35 @@ module FeedGipeda.TaskScheduler
   ) where
 
 
-import           Control.Concurrent                                 (threadDelay)
-import           Control.Concurrent.MSemN                           (MSemN)
-import qualified Control.Concurrent.MSemN                           as MSemN
-import           Control.Distributed.Process                        hiding
-                                                                     (call)
+import           Control.Concurrent                         (threadDelay)
+import           Control.Concurrent.MSemN                   (MSemN)
+import qualified Control.Concurrent.MSemN                   as MSemN
+import qualified Control.Distributed.Backend.P2P            as P2P
+import           Control.Distributed.Process                hiding (call)
 import           Control.Distributed.Process.Async
-import           Control.Distributed.Process.Node (runProcess, forkProcess)
-import qualified Control.Distributed.Backend.P2P as P2P
-import           Control.Distributed.Process.Extras                 hiding
-                                                                     (call,
-                                                                     send)
+import           Control.Distributed.Process.Extras         hiding (call, send)
 import           Control.Distributed.Process.Extras.Time
-import           Control.Distributed.Process.ManagedProcess         hiding(runProcess, forkProcess)
+import           Control.Distributed.Process.ManagedProcess hiding (forkProcess,
+                                                             runProcess)
+import           Control.Distributed.Process.Node           (forkProcess,
+                                                             runProcess)
 import           Control.Distributed.Process.Serializable
-import           Control.Monad                                      (forever)
-import           Data.Binary                                        (Binary)
-import qualified Data.ByteString as BS
+import           Control.Monad                              (forever)
+import           Data.Binary                                (Binary)
+import qualified Data.ByteString                            as BS
 import           Data.Functor
-import           Data.Map                                           (Map)
-import qualified Data.Map                                           as Map
-import           Data.Maybe                                         (isNothing)
-import           Data.Sequence                                      (Seq,
-                                                                     ViewL (..),
-                                                                     (<|), (|>))
-import qualified Data.Sequence                                      as Seq
-import           Data.Set                                           (Set)
-import qualified Data.Set                                           as Set
-import Data.String (fromString)
-import           Data.Typeable                                      (Typeable)
-import           GHC.Generics                                       (Generic)
+import           Data.Map                                   (Map)
+import qualified Data.Map                                   as Map
+import           Data.Maybe                                 (isNothing)
+import           Data.Sequence                              (Seq, ViewL (..),
+                                                             (<|), (|>))
+import qualified Data.Sequence                              as Seq
+import           Data.Set                                   (Set)
+import qualified Data.Set                                   as Set
+import           Data.String                                (fromString)
+import           Data.Typeable                              (Typeable)
+import           FeedGipeda.Prelude
+import           GHC.Generics                               (Generic)
 
 
 {-| A @Task@ contains all information to execute a process on a remote
@@ -103,7 +102,6 @@ start
   => IO (Task a)
   -> Process ()
 start awaitTask = do
-  unregister "logger"
   idleSlaves <- liftIO (MSemN.new 0)
   q <- spawnLocal (queue idleSlaves)
   spawnLocal (slaveDiscovery q)
@@ -152,7 +150,7 @@ start awaitTask = do
           assignment = do
             node <- fst <$> Set.minView idle
             (ref, task) <- case Seq.viewl onHold of
-              EmptyL -> Nothing
+              EmptyL    -> Nothing
               head :< _ -> Just head
             return (node, ref, task)
         in
@@ -202,7 +200,7 @@ start awaitTask = do
                   continue qs'
                 AsyncPending -> fail "Waited for an async task, but still pending"
                 _ -> do
-                  say (show node ++ " failed. Reassigning task.")
+                  logInfo (show node ++ " failed. Reassigning task.")
                   -- (temporarily) blacklist the failing node
                   liftIO (MSemN.signal idleSlaves (-1))
                   qs' <- assignTasks qs
@@ -247,12 +245,9 @@ work
   -> RemoteTable
   -> IO ()
 work host service master rt =
-  P2P.bootstrap host service [master] rt ping
-    where
-      ping = do
-        liftIO (threadDelay 2000000)
-        -- This will try to reach and register with the master node. It's necessary
-        -- in case we lost our master.
-        -- A little unfortunate that we have to hardcode this...
-        whereisRemoteAsync master "P2P:Controller"
-        ping
+  P2P.bootstrap host service [master] rt . forever $ do
+    liftIO (threadDelay 2000000)
+    -- This will try to reach and register with the master node. It's necessary
+    -- in case we lost our master.
+    -- A little unfortunate that we have to hardcode this...
+    whereisRemoteAsync master "P2P:Controller"
