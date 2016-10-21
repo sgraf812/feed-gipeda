@@ -1,4 +1,6 @@
-flags: {}
+flags:
+  time-locale-compat:
+    old-locale: false
 extra-package-dbs: []
 packages:
 - '.'
@@ -6,16 +8,32 @@ packages:
     git: https://github.com/sgraf812/distributed-process-p2p
     commit: c7b66284404b33b4813f3c07c7077b6f7a84bd74
 extra-deps:
-- binary-0.7.6.1
-- distributed-process-0.6.4
+- aeson-0.8.0.2
+- bytestring-builder-0.10.8.1.0
+- conduit-extra-1.1.13.1
+- data-hash-0.2.0.1
+- directory-1.2.2.1
+- distributed-process-0.5.5.1
 - distributed-process-async-0.2.3
 - distributed-process-client-server-0.1.3.2
 - distributed-process-extras-0.2.1.2
 - distributed-process-p2p-0.1.3.2
+- fast-logger-2.4.6
+- file-embed-0.0.10
+- filepath-1.4.1.0
+- fsnotify-0.2.1
+- hfsevents-0.1.6
 - logging-3.0.4
-- network-multicast-0.1.1
+- managed-1.0.5
 - pqueue-1.3.1.1
+- primitive-0.6.1.0
+- process-1.2.3.0
 - reactive-banana-1.1.0.1
+- tasty-hspec-1.1.3
 - time-1.5.0.1
-- yaml-0.8.18
-resolver: lts-7.4
+- time-locale-compat-0.1.1.3
+- unix-time-0.3.6
+- vector-0.11.0.0
+- yaml-0.8.12
+- SafeSemaphore-0.10.1
+resolver: lts-2.22
