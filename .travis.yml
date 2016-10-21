@@ -173,7 +173,7 @@ script:
         stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps
       else
         stack install --install-ghc cloben-0.1.0.3 gipeda-0.3.2.2
-        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --test-arguments="--pattern !Acceptance/"
+        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
       fi
       ;;
     cabal)

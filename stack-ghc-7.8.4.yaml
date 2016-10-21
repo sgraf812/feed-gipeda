@@ -4,6 +4,9 @@ flags:
 extra-package-dbs: []
 packages:
 - '.'
+- location:
+    git: https://github.com/sgraf812/distributed-process-p2p
+    commit: c7b66284404b33b4813f3c07c7077b6f7a84bd74
 extra-deps:
 - aeson-0.8.0.2
 - bytestring-builder-0.10.8.1.0
@@ -14,6 +17,7 @@ extra-deps:
 - distributed-process-async-0.2.3
 - distributed-process-client-server-0.1.3.2
 - distributed-process-extras-0.2.1.2
+- distributed-process-p2p-0.1.3.2
 - fast-logger-2.4.6
 - file-embed-0.0.10
 - filepath-1.4.1.0
