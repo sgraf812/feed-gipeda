@@ -22,17 +22,17 @@ import qualified Control.Concurrent.MSemN                           as MSemN
 import           Control.Distributed.Process                        hiding
                                                                      (call)
 import           Control.Distributed.Process.Async
-import           Control.Distributed.Process.Backend.SimpleLocalnet (Backend (..),
-                                                                     findSlaves,
-                                                                     startSlave)
+import           Control.Distributed.Process.Node (runProcess, forkProcess)
+import qualified Control.Distributed.Backend.P2P as P2P
 import           Control.Distributed.Process.Extras                 hiding
                                                                      (call,
                                                                      send)
 import           Control.Distributed.Process.Extras.Time
-import           Control.Distributed.Process.ManagedProcess
+import           Control.Distributed.Process.ManagedProcess         hiding(runProcess, forkProcess)
 import           Control.Distributed.Process.Serializable
 import           Control.Monad                                      (forever)
 import           Data.Binary                                        (Binary)
+import qualified Data.ByteString as BS
 import           Data.Functor
 import           Data.Map                                           (Map)
 import qualified Data.Map                                           as Map
@@ -43,6 +43,7 @@ import           Data.Sequence                                      (Seq,
 import qualified Data.Sequence                                      as Seq
 import           Data.Set                                           (Set)
 import qualified Data.Set                                           as Set
+import Data.String (fromString)
 import           Data.Typeable                                      (Typeable)
 import           GHC.Generics                                       (Generic)
 
@@ -99,13 +100,13 @@ initialSchedulerState =
 -}
 start
   :: forall a r . Serializable a
-  => Backend
-  -> IO (Task a)
+  => IO (Task a)
   -> Process ()
-start backend awaitTask = do
+start awaitTask = do
+  unregister "logger"
   idleSlaves <- liftIO (MSemN.new 0)
   q <- spawnLocal (queue idleSlaves)
-  spawnLocal (slaveDiscovery backend q)
+  spawnLocal (slaveDiscovery q)
   spawnLocal (dispatch idleSlaves q)
   return ()
     where
@@ -225,14 +226,33 @@ start backend awaitTask = do
             newSlaves =
               Map.fromSet (const Nothing) slaveSet
 
-      slaveDiscovery :: Backend -> ProcessId -> Process ()
-      slaveDiscovery backend queue = forever $ do
+      slaveDiscovery :: ProcessId -> Process ()
+      slaveDiscovery queue = forever $ do
         self <- getSelfNode
-        slaves <- Set.fromList . map processNodeId <$> findSlaves backend
-        --say $ show slaves
-        cast queue (SlaveListChanged (Set.delete self slaves))
+        slaves <- Set.delete self . Set.fromList <$> P2P.getPeers
+        cast queue (SlaveListChanged slaves)
+        liftIO (threadDelay 2000000)
 
-
--- | Register as a slave node and request tasks from the master node. Blocks.
-work :: Backend -> IO ()
-work = startSlave
+{-| Register as a slave node and request tasks from the master node. Blocks.
+    Slave discovery is done in a P2P fashion. We have a star topology with the
+    master node at the center.
+-}
+work
+  :: String
+  -- ^ Host name of the local node, e.g. its IP address.
+  -> String
+  -- ^ Port number of the local node.
+  -> NodeId
+  -- ^ @NodeId@ of the master node.
+  -> RemoteTable
+  -> IO ()
+work host service master rt =
+  P2P.bootstrap host service [master] rt ping
+    where
+      ping = do
+        liftIO (threadDelay 2000000)
+        -- This will try to reach and register with the master node. It's necessary
+        -- in case we lost our master.
+        -- A little unfortunate that we have to hardcode this...
+        whereisRemoteAsync master "P2P:Controller"
+        ping

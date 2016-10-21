@@ -2,12 +2,16 @@ flags: {}
 extra-package-dbs: []
 packages:
 - '.'
+- location:
+    git: https://github.com/sgraf812/distributed-process-p2p
+    commit: c7b66284404b33b4813f3c07c7077b6f7a84bd74
 extra-deps:
 - binary-0.7.6.1
 - distributed-process-0.6.4
 - distributed-process-async-0.2.3
 - distributed-process-client-server-0.1.3.2
 - distributed-process-extras-0.2.1.2
+- distributed-process-p2p-0.1.3.2
 - distributed-process-simplelocalnet-0.2.3.2
 - logging-3.0.4
 - network-multicast-0.1.1
@@ -15,4 +19,4 @@ extra-deps:
 - reactive-banana-1.1.0.1
 - time-1.5.0.1
 - yaml-0.8.18
-resolver: lts-7.3
+resolver: lts-7.4

@@ -58,21 +58,23 @@ data Deployment
 
 -- | Whether the current feed-gipeda process is a master node, slave node, or both.
 data ProcessRole
-  = Master Endpoint
-  | Slave Endpoint
-  | Both Endpoint Endpoint
+  = Master Int
+  -- ^ local port
+  | Slave Int Endpoint
+  -- ^ local port, remote endpoint of the master node
+  | Both Int Int
+  -- ^ local port for master, local port for slave
   deriving (Show, Eq)
 
-
-masterEndpoint :: ProcessRole -> Maybe Endpoint
-masterEndpoint (Master ep) = Just ep
-masterEndpoint (Both ep _) = Just ep
-masterEndpoint _ = Nothing
+masterEndpoint :: ProcessRole -> Endpoint
+masterEndpoint (Master port) = Endpoint "localhost" port
+masterEndpoint (Both masterPort _) = Endpoint "localhost" masterPort
+masterEndpoint (Slave _ ep) = ep
 
 
 slaveEndpoint :: ProcessRole -> Maybe Endpoint
-slaveEndpoint (Slave ep) = Just ep
-slaveEndpoint (Both _ ep) = Just ep
+slaveEndpoint (Slave port _) = Just (Endpoint "localhost" port)
+slaveEndpoint (Both _ slavePort) = Just (Endpoint "localhost" slavePort)
 slaveEndpoint _ = Nothing
 
 

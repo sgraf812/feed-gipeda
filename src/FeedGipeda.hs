@@ -20,7 +20,7 @@ import           Control.Distributed.Process                        (Process,
                                                                      liftIO,
                                                                      say,
                                                                      spawnLocal)
-import qualified Control.Distributed.Process.Backend.SimpleLocalnet as SLN
+import qualified Control.Distributed.Backend.P2P as P2P
 import           Control.Distributed.Process.Node                   (initRemoteTable,
                                                                      runProcess)
 import           Control.Logging                                    as Logging
@@ -81,23 +81,23 @@ feedGipeda paths cmd deployment role_ verbosity = do
         Just (Endpoint host port) -> do
           let
             run = if isBoth role_ then void . forkIO else id
-          run $ do
-            backend <- SLN.initializeBackend host (show port) remoteTable
-            TaskScheduler.work backend
+            toNodeId (Endpoint host port) = P2P.makeNodeId (host ++ show port)
+            master = toNodeId (masterEndpoint role_)
+          run (TaskScheduler.work "localhost" (show port) master remoteTable)
         _ -> return ()
 
-      case masterEndpoint role_ of
-        Nothing -> return ()
-        Just (Endpoint host port) -> do
-          backend <- SLN.initializeBackend host (show port) remoteTable
-          node <- SLN.newLocalNode backend
+      case (role_, masterEndpoint role_) of
+        (Slave _ _, _) -> return ()
+        (_, Endpoint host port) -> do
           queue <- CommitQueue.new
-          runProcess node $ do
+          P2P.bootstrap host (show port) [] remoteTable $ do
             let
               toTask :: (Repo, SHA) -> IO (TaskScheduler.Task String)
               toTask (repo, commit) = do
                 script <- Gipeda.determineBenchmarkScript repo
-                return (THGenerated.stringDict, THGenerated.benchmarkClosure script repo commit timeout, Master.File.writeBenchmarkCSV repo commit . fromMaybe "")
+                let closure = THGenerated.benchmarkClosure script repo commit timeout
+                let finalize = Master.File.writeBenchmarkCSV repo commit . fromMaybe ""
+                return (THGenerated.stringDict, closure, finalize)
 
-            TaskScheduler.start backend (CommitQueue.dequeue queue >>= toTask)
+            TaskScheduler.start (CommitQueue.dequeue queue >>= toTask)
             liftIO (Master.checkForNewCommits paths deployment mode queue)

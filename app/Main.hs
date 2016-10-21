@@ -6,25 +6,13 @@ import           Control.Applicative
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor
-import           Data.List           (elemIndex)
+import           Data.List.Extra           (split)
 import           Data.Monoid         ((<>))
 import           FeedGipeda
 import           Options.Applicative
 import           System.Directory    (getAppUserDataDirectory)
 import           System.FilePath     ((</>))
 import           Text.Read           (readMaybe)
-
-
-endpoint :: ReadM Endpoint
-endpoint = do
-  s <- str
-  case elemIndex ':' s of
-    Nothing -> readerError "Expected a colon separator"
-    Just idx -> do
-      let (host, port') = splitAt idx s
-      case readMaybe (drop 1 port') of
-        Just port -> return (Endpoint host port)
-        Nothing -> readerError "Port was not integral"
 
 
 paths :: FilePath -> Parser Paths
@@ -74,22 +62,36 @@ deployment =
       <> help "ssh or local path under which to deploy site/ folders with rsync")
 
 
+slave :: ReadM ProcessRole
+slave = do
+  s <- str
+  case split (== ':') s of
+    [sport, mhost, mport]->
+      case (readMaybe sport, readMaybe mport) of
+        (Just sp, Just mp) -> return (Slave sp (Endpoint mhost mp))
+        (Nothing, _) -> readerError "Slave port was not integral"
+        (_, Nothing) -> readerError "Master port was not integral"
+    _ -> readerError "Expected 3 sections separated by a colon"
+
 processRole :: Parser ProcessRole
 processRole =
   impl
-    <$> optional (option endpoint
+    <$> optional (option auto
           (long "master"
-            <> metavar "ENDPOINT"
-            <> help "Start in master mode, distributing work items. Identified via the given TCP endpoint (ipadress:portnumber)."))
-    <*> optional (option endpoint
+            <> metavar "PORT"
+            <> help "Start in master mode, distributing work items. Identified via the given TCP port number."))
+    <*> optional (option slave
           (long "slave"
             <> metavar "ENDPOINT"
             <> help "Start in slave mode, requesting work items from a master node. Identified via the given TCP endpoint (ipadress:portnumber)."))
   where
-    impl Nothing Nothing = Both (Endpoint "localhost" 1337) (Endpoint "localhost" 1338)
-    impl (Just ep) Nothing = Master ep
-    impl Nothing (Just ep) = Slave ep
-    impl (Just mep) (Just sep) = Both mep sep
+    impl Nothing Nothing = Both 1337 1338
+    impl (Just port) Nothing = Master port
+    impl Nothing (Just s) = s
+    impl (Just master) (Just (Slave slave ep)) =
+      if port ep == master && host ep == "localhost"
+      then Both master slave
+      else error "Contradiction in --master and --slave args!" -- not proud of this
 
 
 verbosity :: Parser Verbosity
