@@ -70,7 +70,6 @@ library
                      , distributed-process-extras >= 0.1 && < 0.3
                      , distributed-process-client-server >= 0.1 && < 0.3
                      , distributed-process-async >= 0.1 && < 0.3
-                     , distributed-process-simplelocalnet >= 0.2 && < 0.3
                      , distributed-process-p2p >= 0.1 && < 0.2
                      -- we need makeRelativeToProject for CI builds
                      , file-embed >= 0.0.10
