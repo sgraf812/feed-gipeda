@@ -164,7 +164,7 @@ script:
         # Installing gitlib is a pain on OS X because of text-icu, so no testing here.
         stack --no-terminal $ARGS build --bench --no-run-benchmarks --haddock --no-haddock-deps feed-gipeda
       else
-        env STACK_YAML=stack-ghc-8.0.1.yaml stack install --install-ghc cloben-0.1.0.3 gipeda-0.3.2.2
+        env STACK_YAML=stack.yaml stack install --install-ghc cloben-0.1.0.3 gipeda-0.3.2.2
         stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps feed-gipeda
       fi
       ;;
