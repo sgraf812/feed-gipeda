@@ -67,14 +67,14 @@ data ProcessRole
   deriving (Show, Eq)
 
 masterEndpoint :: ProcessRole -> Endpoint
-masterEndpoint (Master port) = Endpoint "localhost" port
-masterEndpoint (Both masterPort _) = Endpoint "localhost" masterPort
+masterEndpoint (Master port) = Endpoint "127.0.0.1" port
+masterEndpoint (Both masterPort _) = Endpoint "127.0.0.1" masterPort
 masterEndpoint (Slave _ ep) = ep
 
 
 slaveEndpoint :: ProcessRole -> Maybe Endpoint
-slaveEndpoint (Slave port _) = Just (Endpoint "localhost" port)
-slaveEndpoint (Both _ slavePort) = Just (Endpoint "localhost" slavePort)
+slaveEndpoint (Slave port _) = Just (Endpoint "127.0.0.1" port)
+slaveEndpoint (Both _ slavePort) = Just (Endpoint "127.0.0.1" slavePort)
 slaveEndpoint _ = Nothing
 
 
