@@ -6,6 +6,7 @@ import           Control.Applicative
 import           Control.Logging     as Logging
 import           Control.Monad       (join)
 import           Data.Functor
+import           Data.List           (intercalate, last, init)
 import           Data.List.Extra     (split)
 import           Data.Monoid         ((<>))
 import           FeedGipeda
@@ -66,11 +67,14 @@ slave :: ReadM ProcessRole
 slave = do
   s <- str
   case split (== ':') s of
-    [sport, mhost, mport]->
+    sport : rest | length rest > 1 -> -- support IPv6
       case (readMaybe sport, readMaybe mport) of
         (Just sp, Just mp) -> return (Slave sp (Endpoint mhost mp))
         (Nothing, _)       -> readerError "Slave port was not integral"
         (_, Nothing)       -> readerError "Master port was not integral"
+      where
+        mport = last rest
+        mhost = intercalate ":" (init rest)
     _ -> readerError "Expected 3 sections separated by a colon"
 
 processRole :: Parser ProcessRole
@@ -89,7 +93,7 @@ processRole =
     impl (Just port) Nothing = Master port
     impl Nothing (Just s) = s
     impl (Just master) (Just (Slave slave ep)) =
-      if port ep == master && host ep == "localhost"
+      if port ep == master && host ep `elem` ["localhost", "127.0.0.1", "::1"]
       then Both master slave
       else error "Contradiction in --master and --slave args!" -- not proud of this
 

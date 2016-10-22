@@ -76,7 +76,7 @@ feedGipeda paths cmd deployment role_ verbosity = do
             toNodeId (Endpoint host port) =
               P2P.makeNodeId (host ++ ":" ++ show port)
             master = toNodeId (masterEndpoint role_)
-          run (TaskScheduler.work "localhost" (show port) master remoteTable)
+          run (TaskScheduler.work "127.0.0.1" (show port) master remoteTable)
         _ -> return ()
 
       case (role_, masterEndpoint role_) of
