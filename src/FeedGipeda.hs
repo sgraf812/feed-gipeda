@@ -70,13 +70,12 @@ feedGipeda paths cmd deployment role_ verbosity = do
       Config.checkFile (configFile paths) >>= maybe exitSuccess error
     Build mode timeout -> do
       case slaveEndpoint role_ of
-        Just (Endpoint host port) -> do
+        Just (Endpoint shost sport) -> do
           let
             run = if isBoth role_ then void . forkIO else id
-            toNodeId (Endpoint host port) =
-              P2P.makeNodeId (host ++ ":" ++ show port)
-            master = toNodeId (masterEndpoint role_)
-          run (TaskScheduler.work "127.0.0.1" (show port) master remoteTable)
+            Endpoint mhost mport = masterEndpoint role_
+            master = P2P.makeNodeId (mhost ++ ":" ++ show mport)
+          run (TaskScheduler.work shost (show sport) master remoteTable)
         _ -> return ()
 
       case (role_, masterEndpoint role_) of
