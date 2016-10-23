@@ -60,7 +60,7 @@ writeBenchmarkCSV repo commit result = do
   cwd <- getCurrentDirectory
   resultsDir <- Repo.resultsDir repo
   createDirectoryIfMissing True resultsDir
-  threadDelay 100000
+  threadDelay 1000
   writeFile (resultsDir </> commit <.> "csv") result
 
 
