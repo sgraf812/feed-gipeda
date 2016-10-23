@@ -88,7 +88,7 @@ withMasterInTmpDir port config =
 
 withSlave :: Int -> Int -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)
 withSlave mp sp =
-  withProcess (proc "feed-gipeda" ["--slave", show sp ++ ":localhost:" ++ show mp])
+  withProcess (proc "feed-gipeda" ["--slave", show sp ++ ":127.0.0.1:" ++ show mp])
 
 
 withProcess :: CreateProcess -> Managed (Source IO ByteString, Source IO ByteString, StreamingProcessHandle)

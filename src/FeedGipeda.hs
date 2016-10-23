@@ -14,8 +14,9 @@ import           Control.Concurrent               (forkIO)
 import           Control.Concurrent.Chan          (Chan, newChan, readChan,
                                                    writeChan)
 import qualified Control.Distributed.Backend.P2P  as P2P
-import           Control.Distributed.Process      (Process, RemoteTable, liftIO,
-                                                   say, spawnLocal)
+import           Control.Distributed.Process      (Process, RemoteTable,
+                                                   getSelfNode, liftIO, say,
+                                                   spawnLocal)
 import           Control.Distributed.Process.Node (initRemoteTable, runProcess)
 import           Control.Logging                  as Logging
 import           Control.Monad                    (forever, void, when)
@@ -83,6 +84,9 @@ feedGipeda paths cmd deployment role_ verbosity = do
         (_, Endpoint host port) -> do
           queue <- CommitQueue.new
           P2P.bootstrap host (show port) [] remoteTable $ do
+            -- We supply no seeds, so the node won't have been created yet.
+            -- I think this is a bug.
+            _ <- getSelfNode
             let
               toTask :: (Repo, SHA) -> IO (TaskScheduler.Task String)
               toTask (repo, commit) = do
