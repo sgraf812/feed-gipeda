@@ -16,7 +16,6 @@ extra-deps:
 - fast-logger-2.4.6
 - file-embed-0.0.10
 - logging-3.0.4
-- managed-1.0.5
 - network-transport-tcp-0.5.1
 - rank1dynamic-0.3.3.0
 - reactive-banana-1.1.0.1
