@@ -64,7 +64,7 @@ matrix:
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.8.4.yaml"
     compiler: ": #stack 7.8.4"
-    addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [ghc-7.8.4, git, unzip, libssl-dev, libfile-slurp-perl, libipc-run-perl, libicu-dev, rsync], sources: [hvr-ghc]}}
 
   - env: BUILD=stack ARGS="--stack-yaml=stack-ghc-7.10.2.yaml"
     compiler: ": #stack 7.10.2"
