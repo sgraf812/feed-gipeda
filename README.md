@@ -88,9 +88,11 @@ Enter default mode (Exit when done). Read config from the default location (syst
 Enter watch mode. Watch for changes to config and re-fetch repositories every 5 seconds. Read config from the default location, act as both master and slave node
 - `feed-gipeda --check --config=~/.feed-gipeda/feed-gipeda.yaml`  
 Enter check mode. Check the specified config file for syntax errors. Useful in a CI setting.
-- `feed-gipeda --master=localhost:12345`  
-Enter default mode. Dispatch benchmark requests on registered slave nodes, don't work on them in this process
-- `feed-gipeda --slave=localhost:12346`  
-Enter slave-only mode. Listen via multicast for master nodes which request you to do benchmarks.
+- `feed-gipeda --master=12345`  
+Enter default mode. Dispatch benchmark requests on registered slave nodes, don't work on them in this process.
+- `feed-gipeda --slave=12346:127.0.0.1:12345`  
+Enter slave-only mode, listen on 127.0.0.1:12346. Periodically try
+to register at the master node located at 127.0.0.1:12345 which requests you to
+do benchmarks.
 - `feed-gipeda --deploy-to=deploymentDir/`  
 Enter default mode. Deploy changes via `rsync` to the local `deploymentDir`

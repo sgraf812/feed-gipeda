@@ -1,7 +1,6 @@
 # Copy these contents into the root directory of your Github project in a file
 # named .travis.yml
 
-# We can't use the container-based architecture because of our acceptance tests using UDP multicast
 sudo: false
 
 # Choose a lightweight base image; we provide our own build tools.
