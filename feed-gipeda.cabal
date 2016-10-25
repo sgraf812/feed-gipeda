@@ -1,10 +1,12 @@
 name:                feed-gipeda
-version:             0.2.0.0
+version:             0.3.0.0
 synopsis:            CI service around gipeda
 description:
-  A service for easy handling of multiple repositories with <https://hackage.haskell.org/package/gipeda gipeda>.
+  A service for easy handling of multiple repositories with
+  <https://hackage.haskell.org/package/gipeda gipeda>.
   .
-  See @--help@ for usage. Example invocation for benchmarking the whole of the @Pipes@ library:
+  See @--help@ for usage. Example invocation for benchmarking the whole of the
+  @Pipes@ library:
   .
   @
   $ cat > feed-gipeda.yaml
