@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0.1
+
+- The invokation of `git fetch` via `callProcess` repeatedly hung up the watch 
+  thread on perf-service.haskell.org. This release fixes that by way of
+  exclusively going through `readCreateProcessWithExitCode` and appropraite
+  logging of error cases in `FeedGipeda.GitShell`.
+
 ## 0.3
 
 - In order to enable easy SSH tunneling, the `distributed-process` backend

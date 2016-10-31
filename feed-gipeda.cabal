@@ -1,5 +1,5 @@
 name:                feed-gipeda
-version:             0.3.0.0
+version:             0.3.0.1
 synopsis:            CI service around gipeda
 description:
   A service for easy handling of multiple repositories with
