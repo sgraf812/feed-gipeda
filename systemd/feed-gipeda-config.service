@@ -1,6 +1,7 @@
 [Unit]
-Description=git pull /root/.feed-gipeda
+Description=git pull /home/benchmark-master/.feed-gipeda
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/git -C /root/.feed-gipeda pull
+ExecStart=/usr/bin/git -C /home/benchmark-master/.feed-gipeda pull
+User=benchmark-master
